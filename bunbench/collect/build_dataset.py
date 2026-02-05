@@ -133,16 +133,12 @@ def validate_instance(
     # Validate category
     category = instance.get("category", "")
     if category and category not in VALID_CATEGORIES:
-        issues.append(
-            f"Invalid category: {category}. Must be one of: {VALID_CATEGORIES}"
-        )
+        issues.append(f"Invalid category: {category}. Must be one of: {VALID_CATEGORIES}")
 
     # Validate difficulty
     difficulty = instance.get("difficulty", "medium")
     if difficulty not in VALID_DIFFICULTIES:
-        issues.append(
-            f"Invalid difficulty: {difficulty}. Must be one of: {VALID_DIFFICULTIES}"
-        )
+        issues.append(f"Invalid difficulty: {difficulty}. Must be one of: {VALID_DIFFICULTIES}")
 
     # Validate instance_id format
     instance_id = instance.get("instance_id", "")
@@ -503,9 +499,7 @@ def main():
     # Validate command
     validate_parser = subparsers.add_parser("validate", help="Validate a dataset")
     validate_parser.add_argument("input", help="Input JSON file")
-    validate_parser.add_argument(
-        "--strict", action="store_true", help="Require evaluation fields"
-    )
+    validate_parser.add_argument("--strict", action="store_true", help="Require evaluation fields")
 
     # Stats command
     stats_parser = subparsers.add_parser("stats", help="Show dataset statistics")

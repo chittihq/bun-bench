@@ -33,57 +33,40 @@ class ParsedTestOutput:
 # ○ test name (skipped)
 
 # Pass pattern: ✓ or (pass)
-PASS_PATTERN = re.compile(
-    r'^[\s]*[✓✔][\s]+(.+?)(?:\s+\[([0-9.]+)\s*m?s\])?$',
-    re.MULTILINE
-)
+PASS_PATTERN = re.compile(r"^[\s]*[✓✔][\s]+(.+?)(?:\s+\[([0-9.]+)\s*m?s\])?$", re.MULTILINE)
 
 # Fail pattern: ✗ or (fail)
-FAIL_PATTERN = re.compile(
-    r'^[\s]*[✗✘×][\s]+(.+?)(?:\s+\[([0-9.]+)\s*m?s\])?$',
-    re.MULTILINE
-)
+FAIL_PATTERN = re.compile(r"^[\s]*[✗✘×][\s]+(.+?)(?:\s+\[([0-9.]+)\s*m?s\])?$", re.MULTILINE)
 
 # Skip pattern: ○ or (skip)
-SKIP_PATTERN = re.compile(
-    r'^[\s]*[○◯][\s]+(.+?)(?:\s+\(skipped\))?$',
-    re.MULTILINE
-)
+SKIP_PATTERN = re.compile(r"^[\s]*[○◯][\s]+(.+?)(?:\s+\(skipped\))?$", re.MULTILINE)
 
 # Alternative format: test name ... pass/fail
 ALT_PASS_PATTERN = re.compile(
-    r'^[\s]*(.+?)\s+\.{2,}\s+(?:pass|passed|ok)(?:\s+\[([0-9.]+)\s*m?s\])?$',
-    re.MULTILINE | re.IGNORECASE
+    r"^[\s]*(.+?)\s+\.{2,}\s+(?:pass|passed|ok)(?:\s+\[([0-9.]+)\s*m?s\])?$",
+    re.MULTILINE | re.IGNORECASE,
 )
 
 ALT_FAIL_PATTERN = re.compile(
-    r'^[\s]*(.+?)\s+\.{2,}\s+(?:fail|failed|error)(?:\s+\[([0-9.]+)\s*m?s\])?$',
-    re.MULTILINE | re.IGNORECASE
+    r"^[\s]*(.+?)\s+\.{2,}\s+(?:fail|failed|error)(?:\s+\[([0-9.]+)\s*m?s\])?$",
+    re.MULTILINE | re.IGNORECASE,
 )
 
 # Summary line pattern
-SUMMARY_PATTERN = re.compile(
-    r'(\d+)\s+pass(?:ed)?.*?(\d+)\s+fail(?:ed)?',
-    re.IGNORECASE
-)
+SUMMARY_PATTERN = re.compile(r"(\d+)\s+pass(?:ed)?.*?(\d+)\s+fail(?:ed)?", re.IGNORECASE)
 
 # Duration pattern from summary
 DURATION_PATTERN = re.compile(
-    r'(?:total\s+)?(?:time|duration)[:\s]+([0-9.]+)\s*(ms|s|m)',
-    re.IGNORECASE
+    r"(?:total\s+)?(?:time|duration)[:\s]+([0-9.]+)\s*(ms|s|m)", re.IGNORECASE
 )
 
 # Error block pattern (indented error messages after failed tests)
 ERROR_BLOCK_PATTERN = re.compile(
-    r'^[\s]*[✗✘×][\s]+(.+?)(?:\s+\[.*?\])?\n((?:[\s]+.+\n?)+)',
-    re.MULTILINE
+    r"^[\s]*[✗✘×][\s]+(.+?)(?:\s+\[.*?\])?\n((?:[\s]+.+\n?)+)", re.MULTILINE
 )
 
 # Describe block pattern for nested test names
-DESCRIBE_PATTERN = re.compile(
-    r'^[\s]*(?:describe|suite)[\s]+["\'](.+?)["\']',
-    re.MULTILINE
-)
+DESCRIBE_PATTERN = re.compile(r'^[\s]*(?:describe|suite)[\s]+["\'](.+?)["\']', re.MULTILINE)
 
 
 def parse_bun_test_output(output: str) -> ParsedTestOutput:
@@ -164,8 +147,7 @@ def parse_bun_test_output(output: str) -> ParsedTestOutput:
     duration_match = DURATION_PATTERN.search(output)
     if duration_match:
         result.total_duration_ms = _parse_duration_with_unit(
-            duration_match.group(1),
-            duration_match.group(2)
+            duration_match.group(1), duration_match.group(2)
         )
 
     # Validate against summary if present
@@ -230,11 +212,11 @@ def _extract_error_messages(output: str, tests: list[TestResult]) -> None:
         # Find matching test and add error message
         for test in tests:
             if test["name"] == test_name and test["status"] == TestStatus.FAILED.value:
-                error_lines = [line.strip() for line in error_block.split('\n') if line.strip()]
+                error_lines = [line.strip() for line in error_block.split("\n") if line.strip()]
                 if error_lines:
                     test["error_message"] = error_lines[0]
                     if len(error_lines) > 1:
-                        test["stack_trace"] = '\n'.join(error_lines[1:])
+                        test["stack_trace"] = "\n".join(error_lines[1:])
                 break
 
 
@@ -251,9 +233,9 @@ def _parse_duration_with_unit(value: str, unit: str) -> float:
     try:
         num = float(value)
         unit = unit.lower()
-        if unit == 's':
+        if unit == "s":
             return num * 1000
-        elif unit == 'm':
+        elif unit == "m":
             return num * 60 * 1000
         else:  # ms
             return num
@@ -286,16 +268,10 @@ def get_test_status_map(output: str) -> dict[str, TestStatus]:
         Dictionary mapping test names to TestStatus
     """
     parsed = parse_bun_test_output(output)
-    return {
-        test["name"]: TestStatus(test["status"])
-        for test in parsed.tests
-    }
+    return {test["name"]: TestStatus(test["status"]) for test in parsed.tests}
 
 
-def filter_tests_by_status(
-    output: str,
-    status: TestStatus
-) -> list[str]:
+def filter_tests_by_status(output: str, status: TestStatus) -> list[str]:
     """
     Get test names filtered by status.
 
@@ -307,11 +283,7 @@ def filter_tests_by_status(
         List of test names with the specified status
     """
     parsed = parse_bun_test_output(output)
-    return [
-        test["name"]
-        for test in parsed.tests
-        if test["status"] == status.value
-    ]
+    return [test["name"] for test in parsed.tests if test["status"] == status.value]
 
 
 def get_failed_test_details(output: str) -> list[TestResult]:
@@ -325,7 +297,4 @@ def get_failed_test_details(output: str) -> list[TestResult]:
         List of TestResult dicts for failed tests with error details
     """
     parsed = parse_bun_test_output(output)
-    return [
-        test for test in parsed.tests
-        if test["status"] == TestStatus.FAILED.value
-    ]
+    return [test for test in parsed.tests if test["status"] == TestStatus.FAILED.value]

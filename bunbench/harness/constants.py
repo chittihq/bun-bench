@@ -27,9 +27,9 @@ class TestStatus(Enum):
 class ResolvedStatus(Enum):
     """Resolution status for an evaluation instance."""
 
-    FULL = "full"       # All FAIL_TO_PASS tests pass, all PASS_TO_PASS tests pass
-    PARTIAL = "partial" # Some FAIL_TO_PASS tests pass, all PASS_TO_PASS tests pass
-    NO = "no"           # No FAIL_TO_PASS tests pass, or PASS_TO_PASS tests fail
+    FULL = "full"  # All FAIL_TO_PASS tests pass, all PASS_TO_PASS tests pass
+    PARTIAL = "partial"  # Some FAIL_TO_PASS tests pass, all PASS_TO_PASS tests pass
+    NO = "no"  # No FAIL_TO_PASS tests pass, or PASS_TO_PASS tests fail
 
     def __str__(self) -> str:
         return self.value
@@ -38,10 +38,10 @@ class ResolvedStatus(Enum):
 class DifficultyLevel(Enum):
     """Difficulty classification for benchmark instances."""
 
-    EASY = "easy"           # Simple, single-file changes
-    MEDIUM = "medium"       # Multi-file or moderate complexity
-    HARD = "hard"           # Complex, requires deep understanding
-    EXPERT = "expert"       # Very complex, architectural changes
+    EASY = "easy"  # Simple, single-file changes
+    MEDIUM = "medium"  # Multi-file or moderate complexity
+    HARD = "hard"  # Complex, requires deep understanding
+    EXPERT = "expert"  # Very complex, architectural changes
 
     def __str__(self) -> str:
         return self.value
@@ -147,7 +147,6 @@ BUN_VERSION_MAPPINGS: dict[str, str] = {
     "1.0": "1.0.0",
     "1.1": "1.1.0",
     "1.2": "1.2.0",
-
     # Specific versions for historical commits
     "2023-09": "1.0.0",
     "2023-10": "1.0.7",
@@ -166,7 +165,6 @@ BUN_VERSION_MAPPINGS: dict[str, str] = {
     "2026-11": "1.1.34",
     "2026-12": "1.1.38",
     "2025-01": "1.2.0",
-
     # Latest
     "latest": "latest",
 }

@@ -27,6 +27,7 @@ DEFAULT_CPU_LIMIT = "2"
 @dataclass
 class ContainerInfo:
     """Information about a Docker container."""
+
     container_id: str
     name: str
     image: str
@@ -37,6 +38,7 @@ class ContainerInfo:
 @dataclass
 class ExecutionResult:
     """Result of executing a command in a container."""
+
     success: bool
     exit_code: int
     stdout: str
@@ -48,6 +50,7 @@ class ExecutionResult:
 @dataclass
 class ContainerConfig:
     """Configuration for creating a container."""
+
     image: str
     name: str | None = None
     memory_limit: str = DEFAULT_MEMORY_LIMIT
@@ -87,13 +90,20 @@ def create_container(config: ContainerConfig) -> tuple[ContainerInfo | None, str
     container_name = config.name or generate_container_name()
 
     cmd = [
-        "docker", "create",
-        "--name", container_name,
-        "--memory", config.memory_limit,
-        "--cpus", config.cpu_limit,
-        "--network", config.network_mode,
-        "--workdir", config.working_dir,
-        "--user", config.user,
+        "docker",
+        "create",
+        "--name",
+        container_name,
+        "--memory",
+        config.memory_limit,
+        "--cpus",
+        config.cpu_limit,
+        "--network",
+        config.network_mode,
+        "--workdir",
+        config.working_dir,
+        "--user",
+        config.user,
     ]
 
     # Add environment variables
@@ -112,22 +122,20 @@ def create_container(config: ContainerConfig) -> tuple[ContainerInfo | None, str
 
     try:
         logger.debug(f"Creating container: {' '.join(cmd)}")
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=60
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
         if result.returncode == 0:
             container_id = result.stdout.strip()
             logger.info(f"Created container: {container_name} ({container_id[:12]})")
-            return ContainerInfo(
-                container_id=container_id,
-                name=container_name,
-                image=config.image,
-                status="created"
-            ), None
+            return (
+                ContainerInfo(
+                    container_id=container_id,
+                    name=container_name,
+                    image=config.image,
+                    status="created",
+                ),
+                None,
+            )
         else:
             logger.error(f"Failed to create container: {result.stderr}")
             return None, result.stderr
@@ -150,10 +158,7 @@ def start_container(container: ContainerInfo) -> tuple[bool, str | None]:
     """
     try:
         result = subprocess.run(
-            ["docker", "start", container.container_id],
-            capture_output=True,
-            text=True,
-            timeout=30
+            ["docker", "start", container.container_id], capture_output=True, text=True, timeout=30
         )
 
         if result.returncode == 0:
@@ -170,10 +175,7 @@ def start_container(container: ContainerInfo) -> tuple[bool, str | None]:
         return False, str(e)
 
 
-def stop_container(
-    container: ContainerInfo,
-    timeout: int = 10
-) -> tuple[bool, str | None]:
+def stop_container(container: ContainerInfo, timeout: int = 10) -> tuple[bool, str | None]:
     """
     Stop a Docker container.
 
@@ -189,7 +191,7 @@ def stop_container(
             ["docker", "stop", "-t", str(timeout), container.container_id],
             capture_output=True,
             text=True,
-            timeout=timeout + 30
+            timeout=timeout + 30,
         )
 
         if result.returncode == 0:
@@ -202,10 +204,7 @@ def stop_container(
 
     except subprocess.TimeoutExpired:
         # Force kill
-        subprocess.run(
-            ["docker", "kill", container.container_id],
-            capture_output=True
-        )
+        subprocess.run(["docker", "kill", container.container_id], capture_output=True)
         container.status = "killed"
         return True, "Container was force killed"
     except Exception as e:
@@ -213,9 +212,7 @@ def stop_container(
 
 
 def copy_to_container(
-    container: ContainerInfo,
-    source_path: Path,
-    dest_path: str
+    container: ContainerInfo, source_path: Path, dest_path: str
 ) -> tuple[bool, str | None]:
     """
     Copy files to a container.
@@ -236,7 +233,7 @@ def copy_to_container(
             ["docker", "cp", str(source_path), f"{container.container_id}:{dest_path}"],
             capture_output=True,
             text=True,
-            timeout=300
+            timeout=300,
         )
 
         if result.returncode == 0:
@@ -253,9 +250,7 @@ def copy_to_container(
 
 
 def copy_from_container(
-    container: ContainerInfo,
-    source_path: str,
-    dest_path: Path
+    container: ContainerInfo, source_path: str, dest_path: Path
 ) -> tuple[bool, str | None]:
     """
     Copy files from a container.
@@ -276,7 +271,7 @@ def copy_from_container(
             ["docker", "cp", f"{container.container_id}:{source_path}", str(dest_path)],
             capture_output=True,
             text=True,
-            timeout=300
+            timeout=300,
         )
 
         if result.returncode == 0:
@@ -293,10 +288,7 @@ def copy_from_container(
 
 
 def copy_content_to_container(
-    container: ContainerInfo,
-    content: str,
-    dest_path: str,
-    filename: str = "file.txt"
+    container: ContainerInfo, content: str, dest_path: str, filename: str = "file.txt"
 ) -> tuple[bool, str | None]:
     """
     Copy string content to a file in the container.
@@ -313,8 +305,8 @@ def copy_content_to_container(
     try:
         # Create a tar archive in memory
         tar_stream = io.BytesIO()
-        with tarfile.open(fileobj=tar_stream, mode='w') as tar:
-            content_bytes = content.encode('utf-8')
+        with tarfile.open(fileobj=tar_stream, mode="w") as tar:
+            content_bytes = content.encode("utf-8")
             tarinfo = tarfile.TarInfo(name=filename)
             tarinfo.size = len(content_bytes)
             tar.addfile(tarinfo, io.BytesIO(content_bytes))
@@ -326,7 +318,7 @@ def copy_content_to_container(
             ["docker", "cp", "-", f"{container.container_id}:{dest_path}"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.PIPE,
         )
 
         stdout, stderr = process.communicate(input=tar_stream.read(), timeout=60)
@@ -350,7 +342,7 @@ def execute_command(
     timeout: int = DEFAULT_TIMEOUT,
     working_dir: str | None = None,
     environment: dict[str, str] | None = None,
-    user: str | None = None
+    user: str | None = None,
 ) -> ExecutionResult:
     """
     Execute a command in a container with timeout.
@@ -385,12 +377,7 @@ def execute_command(
 
     try:
         logger.debug(f"Executing in {container.name}: {' '.join(command)}")
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
         duration = time.time() - start_time
 
@@ -400,7 +387,7 @@ def execute_command(
             stdout=result.stdout,
             stderr=result.stderr,
             duration=duration,
-            timed_out=False
+            timed_out=False,
         )
 
     except subprocess.TimeoutExpired as e:
@@ -413,7 +400,7 @@ def execute_command(
             stdout=e.stdout.decode() if e.stdout else "",
             stderr=e.stderr.decode() if e.stderr else "Command timed out",
             duration=duration,
-            timed_out=True
+            timed_out=True,
         )
 
     except Exception as e:
@@ -426,7 +413,7 @@ def execute_command(
             stdout="",
             stderr=str(e),
             duration=duration,
-            timed_out=False
+            timed_out=False,
         )
 
 
@@ -435,7 +422,7 @@ def execute_script(
     script: str,
     timeout: int = DEFAULT_TIMEOUT,
     working_dir: str | None = None,
-    environment: dict[str, str] | None = None
+    environment: dict[str, str] | None = None,
 ) -> ExecutionResult:
     """
     Execute a shell script in a container.
@@ -454,9 +441,7 @@ def execute_script(
     script_name = f"script_{uuid.uuid4().hex[:8]}.sh"
     dest_dir = working_dir or "/home/bunuser/workspace/tests"
 
-    success, error = copy_content_to_container(
-        container, script, dest_dir, script_name
-    )
+    success, error = copy_content_to_container(container, script, dest_dir, script_name)
 
     if not success:
         return ExecutionResult(
@@ -465,7 +450,7 @@ def execute_script(
             stdout="",
             stderr=f"Failed to copy script: {error}",
             duration=0,
-            timed_out=False
+            timed_out=False,
         )
 
     # Make script executable and run it
@@ -475,14 +460,12 @@ def execute_script(
         ["bash", script_path],
         timeout=timeout,
         working_dir=working_dir,
-        environment=environment
+        environment=environment,
     )
 
 
 def get_container_logs(
-    container: ContainerInfo,
-    tail: int | None = None,
-    since: str | None = None
+    container: ContainerInfo, tail: int | None = None, since: str | None = None
 ) -> tuple[str, str]:
     """
     Get logs from a container.
@@ -506,12 +489,7 @@ def get_container_logs(
     cmd.append(container.container_id)
 
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=60
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         return result.stdout, result.stderr
 
     except Exception as e:
@@ -534,7 +512,7 @@ def get_container_status(container: ContainerInfo) -> str | None:
             ["docker", "inspect", container.container_id, "--format", "{{.State.Status}}"],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
         )
 
         if result.returncode == 0:
@@ -549,9 +527,7 @@ def get_container_status(container: ContainerInfo) -> str | None:
 
 
 def cleanup_container(
-    container: ContainerInfo,
-    force: bool = True,
-    remove_volumes: bool = False
+    container: ContainerInfo, force: bool = True, remove_volumes: bool = False
 ) -> tuple[bool, str | None]:
     """
     Remove a container and optionally its volumes.
@@ -575,12 +551,7 @@ def cleanup_container(
     cmd.append(container.container_id)
 
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=60
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
         if result.returncode == 0:
             container.status = "removed"
@@ -594,10 +565,7 @@ def cleanup_container(
         return False, str(e)
 
 
-def cleanup_containers_by_prefix(
-    prefix: str = "bunbench",
-    force: bool = True
-) -> dict[str, Any]:
+def cleanup_containers_by_prefix(prefix: str = "bunbench", force: bool = True) -> dict[str, Any]:
     """
     Clean up all containers matching a name prefix.
 
@@ -614,7 +582,7 @@ def cleanup_containers_by_prefix(
             ["docker", "ps", "-a", "--filter", f"name={prefix}", "--format", "{{.ID}}\t{{.Names}}"],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
         )
 
         if result.returncode != 0:
@@ -632,11 +600,7 @@ def cleanup_containers_by_prefix(
             container_name = parts[1] if len(parts) > 1 else container_id
 
             # Create a container info object
-            container = ContainerInfo(
-                container_id=container_id,
-                name=container_name,
-                image=""
-            )
+            container = ContainerInfo(container_id=container_id, name=container_name, image="")
 
             success, error = cleanup_container(container, force=force)
 
@@ -651,10 +615,7 @@ def cleanup_containers_by_prefix(
         return {"removed": [], "errors": [str(e)]}
 
 
-def list_containers(
-    prefix: str = "bunbench",
-    all_containers: bool = True
-) -> list[ContainerInfo]:
+def list_containers(prefix: str = "bunbench", all_containers: bool = True) -> list[ContainerInfo]:
     """
     List containers matching a name prefix.
 
@@ -665,19 +626,20 @@ def list_containers(
     Returns:
         List of ContainerInfo objects
     """
-    cmd = ["docker", "ps", "--filter", f"name={prefix}",
-           "--format", "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}"]
+    cmd = [
+        "docker",
+        "ps",
+        "--filter",
+        f"name={prefix}",
+        "--format",
+        "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}",
+    ]
 
     if all_containers:
         cmd.insert(2, "-a")
 
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
         if result.returncode != 0:
             return []
@@ -689,12 +651,11 @@ def list_containers(
 
             parts = line.split("\t")
             if len(parts) >= 4:
-                containers.append(ContainerInfo(
-                    container_id=parts[0],
-                    name=parts[1],
-                    image=parts[2],
-                    status=parts[3]
-                ))
+                containers.append(
+                    ContainerInfo(
+                        container_id=parts[0], name=parts[1], image=parts[2], status=parts[3]
+                    )
+                )
 
         return containers
 
@@ -703,10 +664,7 @@ def list_containers(
         return []
 
 
-def wait_for_container(
-    container: ContainerInfo,
-    timeout: int = 60
-) -> tuple[bool, int | None]:
+def wait_for_container(container: ContainerInfo, timeout: int = 60) -> tuple[bool, int | None]:
     """
     Wait for a container to finish execution.
 
@@ -722,7 +680,7 @@ def wait_for_container(
             ["docker", "wait", container.container_id],
             capture_output=True,
             text=True,
-            timeout=timeout
+            timeout=timeout,
         )
 
         if result.returncode == 0:

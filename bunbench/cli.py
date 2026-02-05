@@ -29,7 +29,8 @@ For more information, visit: https://github.com/bun-bench/bun-bench
     )
 
     parser.add_argument(
-        "-v", "--version",
+        "-v",
+        "--version",
         action="version",
         version=f"%(prog)s {__version__}",
     )
@@ -43,31 +44,36 @@ For more information, visit: https://github.com/bun-bench/bun-bench
         description="Evaluate model-generated patches against the benchmark test suite",
     )
     eval_parser.add_argument(
-        "-d", "--dataset",
+        "-d",
+        "--dataset",
         type=Path,
         required=True,
         help="Path to dataset JSON file",
     )
     eval_parser.add_argument(
-        "-p", "--predictions",
+        "-p",
+        "--predictions",
         type=Path,
         required=True,
         help="Path to predictions JSON file",
     )
     eval_parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         type=Path,
         default=Path("results"),
         help="Output directory for results (default: results)",
     )
     eval_parser.add_argument(
-        "-w", "--workers",
+        "-w",
+        "--workers",
         type=int,
         default=4,
         help="Number of parallel workers (default: 4)",
     )
     eval_parser.add_argument(
-        "-t", "--timeout",
+        "-t",
+        "--timeout",
         type=int,
         default=300,
         help="Timeout per instance in seconds (default: 300)",
@@ -90,13 +96,15 @@ For more information, visit: https://github.com/bun-bench/bun-bench
         description="Generate patches using LLM APIs",
     )
     inf_parser.add_argument(
-        "-d", "--dataset",
+        "-d",
+        "--dataset",
         type=Path,
         required=True,
         help="Path to dataset JSON file",
     )
     inf_parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         type=Path,
         required=True,
         help="Output path for predictions JSONL file",
@@ -108,7 +116,8 @@ For more information, visit: https://github.com/bun-bench/bun-bench
         help="LLM provider (default: anthropic)",
     )
     inf_parser.add_argument(
-        "-m", "--model",
+        "-m",
+        "--model",
         type=str,
         help="Model name (default depends on provider)",
     )
@@ -361,7 +370,10 @@ def cmd_validate(args: argparse.Namespace) -> int:
                     print("Error: Missing instance_id in prediction", file=sys.stderr)
                     return 1
                 if "model_patch" not in pred and "patch" not in pred:
-                    print(f"Error: Missing patch in prediction {pred.get('instance_id')}", file=sys.stderr)
+                    print(
+                        f"Error: Missing patch in prediction {pred.get('instance_id')}",
+                        file=sys.stderr,
+                    )
                     return 1
 
             print(f"Validation passed: {len(predictions)} predictions OK")

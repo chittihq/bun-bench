@@ -168,9 +168,7 @@ class APIClient(ABC):
                 )
             except Exception as e:
                 last_error = e
-                logger.warning(
-                    f"API call failed (attempt {attempt + 1}/{self.max_retries}): {e}"
-                )
+                logger.warning(f"API call failed (attempt {attempt + 1}/{self.max_retries}): {e}")
 
                 if attempt < self.max_retries - 1:
                     logger.info(f"Retrying in {delay:.1f}s...")
@@ -216,9 +214,7 @@ class OpenAIClient(APIClient):
 
             self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         except ImportError:
-            raise ImportError(
-                "openai package not installed. Install with: pip install openai"
-            )
+            raise ImportError("openai package not installed. Install with: pip install openai")
 
     def call(
         self,
@@ -335,9 +331,7 @@ def load_dataset(path: str) -> list[dict[str, Any]]:
     elif isinstance(data, dict) and "instances" in data:
         return data["instances"]
     else:
-        raise ValueError(
-            "Invalid dataset format. Expected list or dict with 'instances' key."
-        )
+        raise ValueError("Invalid dataset format. Expected list or dict with 'instances' key.")
 
 
 def load_processed_ids(output_path: str) -> set:

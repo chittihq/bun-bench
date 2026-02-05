@@ -30,6 +30,7 @@ class InstanceReport:
         error_message: Error message if evaluation failed.
         test_output: Raw test output (truncated if too long).
     """
+
     instance_id: str
     status: str
     patch_applied: bool = False
@@ -43,9 +44,7 @@ class InstanceReport:
 
     @classmethod
     def from_evaluation_result(
-        cls,
-        result: EvaluationResult,
-        max_output_length: int = 10000
+        cls, result: EvaluationResult, max_output_length: int = 10000
     ) -> "InstanceReport":
         """Create an InstanceReport from an EvaluationResult.
 
@@ -72,9 +71,9 @@ class InstanceReport:
                 test_output = result.test_result.output
                 if len(test_output) > max_output_length:
                     test_output = (
-                        test_output[:max_output_length // 2] +
-                        "\n... [truncated] ...\n" +
-                        test_output[-max_output_length // 2:]
+                        test_output[: max_output_length // 2]
+                        + "\n... [truncated] ...\n"
+                        + test_output[-max_output_length // 2 :]
                     )
 
         return cls(
@@ -108,6 +107,7 @@ class ReportSummary:
         config: Configuration used for the evaluation.
         instances: Detailed reports for each instance.
     """
+
     total: int = 0
     resolved: int = 0
     unresolved: int = 0
@@ -180,8 +180,7 @@ def generate_report(
 
         # Create instance report
         instance_report = InstanceReport.from_evaluation_result(
-            result,
-            max_output_length=max_output_length if include_test_output else 0
+            result, max_output_length=max_output_length if include_test_output else 0
         )
 
         if not include_test_output:
@@ -255,9 +254,7 @@ def load_report(report_path: str) -> ReportSummary:
     metadata = data.get("metadata", {})
     instances_data = data.get("instances", [])
 
-    instances = [
-        InstanceReport(**inst_data) for inst_data in instances_data
-    ]
+    instances = [InstanceReport(**inst_data) for inst_data in instances_data]
 
     return ReportSummary(
         total=summary.get("total", 0),
@@ -312,9 +309,11 @@ def print_report_summary(report: ReportSummary) -> None:
             print(f"  {status_marker} {inst.instance_id}")
 
             if inst.status == "resolved" or inst.status == "unresolved":
-                print(f"           Tests: {inst.tests_passed} passed, "
-                      f"{inst.tests_failed} failed, "
-                      f"{inst.tests_skipped} skipped")
+                print(
+                    f"           Tests: {inst.tests_passed} passed, "
+                    f"{inst.tests_failed} failed, "
+                    f"{inst.tests_skipped} skipped"
+                )
 
             if inst.error_message:
                 error_short = inst.error_message[:60]
@@ -378,17 +377,21 @@ def compare_reports(
             s2 = status_order.get(inst2.status, 0)
 
             if s2 > s1:
-                improvements.append({
-                    "instance_id": instance_id,
-                    "from": inst1.status,
-                    "to": inst2.status,
-                })
+                improvements.append(
+                    {
+                        "instance_id": instance_id,
+                        "from": inst1.status,
+                        "to": inst2.status,
+                    }
+                )
             elif s2 < s1:
-                regressions.append({
-                    "instance_id": instance_id,
-                    "from": inst1.status,
-                    "to": inst2.status,
-                })
+                regressions.append(
+                    {
+                        "instance_id": instance_id,
+                        "from": inst1.status,
+                        "to": inst2.status,
+                    }
+                )
             else:
                 unchanged.append(instance_id)
 

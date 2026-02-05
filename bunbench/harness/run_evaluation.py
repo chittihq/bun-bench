@@ -27,14 +27,14 @@ except ImportError:
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 
 class EvaluationStatus(str, Enum):
     """Status of an evaluation run."""
+
     PENDING = "pending"
     RUNNING = "running"
     RESOLVED = "resolved"
@@ -58,6 +58,7 @@ class EvaluationConfig:
         verbose: Enable verbose output.
         instance_ids: Optional list of specific instance IDs to evaluate.
     """
+
     dataset_path: str
     predictions_path: str
     output_dir: str = "./results"
@@ -81,6 +82,7 @@ class TestResult:
         output: Raw test output.
         error: Error message if any.
     """
+
     passed: int = 0
     failed: int = 0
     skipped: int = 0
@@ -102,6 +104,7 @@ class EvaluationResult:
         error_message: Error message if evaluation failed.
         metadata: Additional metadata about the evaluation.
     """
+
     instance_id: str
     status: EvaluationStatus = EvaluationStatus.PENDING
     patch_applied: bool = False
@@ -143,9 +146,7 @@ def load_dataset(dataset_path: str) -> list[dict[str, Any]]:
         elif isinstance(data, dict) and "instances" in data:
             instances = data["instances"]
         else:
-            raise ValueError(
-                "Dataset must be a list or dict with 'instances' key"
-            )
+            raise ValueError("Dataset must be a list or dict with 'instances' key")
 
         logger.info(f"Loaded {len(instances)} instances from JSON file")
         return instances
@@ -176,9 +177,7 @@ def load_dataset(dataset_path: str) -> list[dict[str, Any]]:
             "Install with: pip install datasets"
         )
     except Exception as e:
-        raise FileNotFoundError(
-            f"Could not load dataset from '{dataset_path}': {e}"
-        )
+        raise FileNotFoundError(f"Could not load dataset from '{dataset_path}': {e}")
 
 
 def load_predictions(predictions_path: str) -> dict[str, str]:
@@ -226,9 +225,7 @@ def get_docker_image_name(instance: dict[str, Any], prefix: str) -> str:
 
 
 def build_docker_image(
-    instance: dict[str, Any],
-    image_name: str,
-    force_rebuild: bool = False
+    instance: dict[str, Any], image_name: str, force_rebuild: bool = False
 ) -> bool:
     """Build or retrieve Docker image for an instance.
 
@@ -243,9 +240,7 @@ def build_docker_image(
     # Check if image already exists
     if not force_rebuild:
         result = subprocess.run(
-            ["docker", "image", "inspect", image_name],
-            capture_output=True,
-            text=True
+            ["docker", "image", "inspect", image_name], capture_output=True, text=True
         )
         if result.returncode == 0:
             logger.debug(f"Image {image_name} already exists")
@@ -265,9 +260,7 @@ def build_docker_image(
                 f.write(dockerfile_content)
 
             result = subprocess.run(
-                ["docker", "build", "-t", image_name, tmpdir],
-                capture_output=True,
-                text=True
+                ["docker", "build", "-t", image_name, tmpdir], capture_output=True, text=True
             )
 
             if result.returncode != 0:
@@ -277,9 +270,7 @@ def build_docker_image(
         # Use default Bun image if no Dockerfile specified
         logger.info(f"Using default bun image for {image_name}")
         result = subprocess.run(
-            ["docker", "pull", "oven/bun:latest"],
-            capture_output=True,
-            text=True
+            ["docker", "pull", "oven/bun:latest"], capture_output=True, text=True
         )
 
         if result.returncode != 0:
@@ -287,10 +278,7 @@ def build_docker_image(
             return False
 
         # Tag it with our image name
-        subprocess.run(
-            ["docker", "tag", "oven/bun:latest", image_name],
-            capture_output=True
-        )
+        subprocess.run(["docker", "tag", "oven/bun:latest", image_name], capture_output=True)
 
     return True
 
@@ -309,11 +297,10 @@ def apply_patch(container_id: str, patch: str) -> tuple[bool, str]:
 
     # Write patch to a temp file in the container
     result = subprocess.run(
-        ["docker", "exec", "-i", container_id, "sh", "-c",
-         "cat > /tmp/model.patch"],
+        ["docker", "exec", "-i", container_id, "sh", "-c", "cat > /tmp/model.patch"],
         input=patch,
         capture_output=True,
-        text=True
+        text=True,
     )
 
     if result.returncode != 0:
@@ -321,20 +308,27 @@ def apply_patch(container_id: str, patch: str) -> tuple[bool, str]:
 
     # Apply the patch
     result = subprocess.run(
-        ["docker", "exec", container_id, "git", "apply",
-         "--allow-empty", "/tmp/model.patch"],
+        ["docker", "exec", container_id, "git", "apply", "--allow-empty", "/tmp/model.patch"],
         capture_output=True,
         text=True,
-        cwd="/app"
+        cwd="/app",
     )
 
     if result.returncode != 0:
         # Try with --3way for more lenient patching
         result = subprocess.run(
-            ["docker", "exec", container_id, "git", "apply",
-             "--3way", "--allow-empty", "/tmp/model.patch"],
+            [
+                "docker",
+                "exec",
+                container_id,
+                "git",
+                "apply",
+                "--3way",
+                "--allow-empty",
+                "/tmp/model.patch",
+            ],
             capture_output=True,
-            text=True
+            text=True,
         )
 
         if result.returncode != 0:
@@ -360,7 +354,7 @@ def run_tests(container_id: str, timeout: int) -> TestResult:
             ["docker", "exec", container_id, "bun", "test", "--json"],
             capture_output=True,
             text=True,
-            timeout=timeout
+            timeout=timeout,
         )
 
         output = result.stdout + result.stderr
@@ -369,9 +363,7 @@ def run_tests(container_id: str, timeout: int) -> TestResult:
         return parse_test_output(output)
 
     except subprocess.TimeoutExpired:
-        return TestResult(
-            error=f"Test execution timed out after {timeout} seconds"
-        )
+        return TestResult(error=f"Test execution timed out after {timeout} seconds")
     except Exception as e:
         return TestResult(error=str(e))
 
@@ -399,8 +391,7 @@ def parse_test_output(output: str) -> TestResult:
             result.passed = data.get("passed", 0)
             result.failed = data.get("failed", 0)
             result.skipped = data.get("skipped", 0)
-            result.total = data.get("total",
-                                    result.passed + result.failed + result.skipped)
+            result.total = data.get("total", result.passed + result.failed + result.skipped)
             return result
     except json.JSONDecodeError:
         pass
@@ -462,9 +453,7 @@ def grade_result(test_result: TestResult, instance: dict[str, Any]) -> Evaluatio
 
 
 def run_single_evaluation(
-    instance: dict[str, Any],
-    patch: str,
-    config: EvaluationConfig
+    instance: dict[str, Any], patch: str, config: EvaluationConfig
 ) -> EvaluationResult:
     """Run evaluation for a single instance.
 
@@ -502,18 +491,20 @@ def run_single_evaluation(
 
         # Build docker run command
         docker_run_cmd = [
-            "docker", "run", "-d",
-            "--name", f"bunbench-{instance_id.replace('/', '-')}",
-            "-w", workdir,
+            "docker",
+            "run",
+            "-d",
+            "--name",
+            f"bunbench-{instance_id.replace('/', '-')}",
+            "-w",
+            workdir,
             image_name,
-            "tail", "-f", "/dev/null"  # Keep container running
+            "tail",
+            "-f",
+            "/dev/null",  # Keep container running
         ]
 
-        run_result = subprocess.run(
-            docker_run_cmd,
-            capture_output=True,
-            text=True
-        )
+        run_result = subprocess.run(docker_run_cmd, capture_output=True, text=True)
 
         if run_result.returncode != 0:
             result.status = EvaluationStatus.ERROR
@@ -524,20 +515,27 @@ def run_single_evaluation(
 
         # Clone repo and checkout base commit if specified
         if repo_url:
-            clone_cmd = ["docker", "exec", container_id, "git", "clone",
-                        repo_url, workdir]
+            clone_cmd = ["docker", "exec", container_id, "git", "clone", repo_url, workdir]
             subprocess.run(clone_cmd, capture_output=True)
 
             if base_commit:
-                checkout_cmd = ["docker", "exec", "-w", workdir, container_id,
-                               "git", "checkout", base_commit]
+                checkout_cmd = [
+                    "docker",
+                    "exec",
+                    "-w",
+                    workdir,
+                    container_id,
+                    "git",
+                    "checkout",
+                    base_commit,
+                ]
                 subprocess.run(checkout_cmd, capture_output=True)
 
         # Install dependencies
         subprocess.run(
             ["docker", "exec", "-w", workdir, container_id, "bun", "install"],
             capture_output=True,
-            timeout=120
+            timeout=120,
         )
 
         # Apply the patch
@@ -566,9 +564,7 @@ def run_single_evaluation(
         if container_id:
             try:
                 subprocess.run(
-                    ["docker", "rm", "-f", container_id],
-                    capture_output=True,
-                    timeout=30
+                    ["docker", "rm", "-f", container_id], capture_output=True, timeout=30
                 )
             except Exception:
                 pass
@@ -596,10 +592,7 @@ def run_evaluation(config: EvaluationConfig) -> list[EvaluationResult]:
 
     # Filter instances if specific IDs requested
     if config.instance_ids:
-        dataset = [
-            inst for inst in dataset
-            if inst.get("instance_id") in config.instance_ids
-        ]
+        dataset = [inst for inst in dataset if inst.get("instance_id") in config.instance_ids]
         logger.info(f"Filtered to {len(dataset)} instances")
 
     # Create output directory
@@ -617,27 +610,24 @@ def run_evaluation(config: EvaluationConfig) -> list[EvaluationResult]:
 
             if instance_id not in predictions:
                 logger.warning(f"No prediction for {instance_id}, skipping")
-                results.append(EvaluationResult(
-                    instance_id=instance_id,
-                    status=EvaluationStatus.SKIPPED,
-                    error_message="No prediction provided"
-                ))
+                results.append(
+                    EvaluationResult(
+                        instance_id=instance_id,
+                        status=EvaluationStatus.SKIPPED,
+                        error_message="No prediction provided",
+                    )
+                )
                 continue
 
             patch = predictions[instance_id]
-            future = executor.submit(
-                run_single_evaluation, instance, patch, config
-            )
+            future = executor.submit(run_single_evaluation, instance, patch, config)
             future_to_instance[future] = instance_id
 
         # Collect results with progress bar
         futures = list(future_to_instance.keys())
 
         for future in tqdm(
-            as_completed(futures),
-            total=len(futures),
-            desc="Evaluating",
-            disable=not config.verbose
+            as_completed(futures), total=len(futures), desc="Evaluating", disable=not config.verbose
         ):
             try:
                 result = future.result()
@@ -656,11 +646,11 @@ def run_evaluation(config: EvaluationConfig) -> list[EvaluationResult]:
             except Exception as e:
                 instance_id = future_to_instance[future]
                 logger.error(f"Error processing {instance_id}: {e}")
-                results.append(EvaluationResult(
-                    instance_id=instance_id,
-                    status=EvaluationStatus.ERROR,
-                    error_message=str(e)
-                ))
+                results.append(
+                    EvaluationResult(
+                        instance_id=instance_id, status=EvaluationStatus.ERROR, error_message=str(e)
+                    )
+                )
 
     logger.info(f"Evaluation complete. {len(results)} instances processed.")
     return results
@@ -690,56 +680,45 @@ Examples:
       --dataset ./data/bun-bench.json \\
       --predictions ./predictions.json \\
       --instance-ids bun-123 bun-456
-        """
+        """,
     )
 
     parser.add_argument(
-        "--dataset", "-d",
+        "--dataset",
+        "-d",
         required=True,
-        help="Path to dataset JSON file or HuggingFace dataset identifier"
+        help="Path to dataset JSON file or HuggingFace dataset identifier",
     )
     parser.add_argument(
-        "--predictions", "-p",
+        "--predictions",
+        "-p",
         required=True,
-        help="Path to predictions JSON file (instance_id -> patch mapping)"
+        help="Path to predictions JSON file (instance_id -> patch mapping)",
     )
     parser.add_argument(
-        "--output", "-o",
+        "--output",
+        "-o",
         default="./results",
-        help="Output directory for results (default: ./results)"
+        help="Output directory for results (default: ./results)",
     )
     parser.add_argument(
-        "--workers", "-w",
-        type=int,
-        default=4,
-        help="Number of parallel workers (default: 4)"
+        "--workers", "-w", type=int, default=4, help="Number of parallel workers (default: 4)"
     )
     parser.add_argument(
-        "--timeout", "-t",
+        "--timeout",
+        "-t",
         type=int,
         default=300,
-        help="Timeout in seconds per evaluation (default: 300)"
+        help="Timeout in seconds per evaluation (default: 300)",
     )
     parser.add_argument(
-        "--docker-prefix",
-        default="bunbench",
-        help="Docker image name prefix (default: bunbench)"
+        "--docker-prefix", default="bunbench", help="Docker image name prefix (default: bunbench)"
     )
     parser.add_argument(
-        "--force-rebuild",
-        action="store_true",
-        help="Force rebuild of Docker images"
+        "--force-rebuild", action="store_true", help="Force rebuild of Docker images"
     )
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose output"
-    )
-    parser.add_argument(
-        "--instance-ids",
-        nargs="+",
-        help="Specific instance IDs to evaluate"
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
+    parser.add_argument("--instance-ids", nargs="+", help="Specific instance IDs to evaluate")
 
     args = parser.parse_args()
 

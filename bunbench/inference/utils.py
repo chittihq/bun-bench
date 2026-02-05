@@ -31,7 +31,7 @@ def extract_patch(response: str) -> str | None:
         return None
 
     # Try to extract from ```diff``` code blocks (most common)
-    diff_block_pattern = r'```(?:diff|patch|unified)?\s*\n(.*?)```'
+    diff_block_pattern = r"```(?:diff|patch|unified)?\s*\n(.*?)```"
     matches = re.findall(diff_block_pattern, response, re.DOTALL | re.IGNORECASE)
 
     if matches:
@@ -41,7 +41,7 @@ def extract_patch(response: str) -> str | None:
                 return match.strip()
 
     # Try <patch>...</patch> tags
-    patch_tag_pattern = r'<patch>\s*(.*?)\s*</patch>'
+    patch_tag_pattern = r"<patch>\s*(.*?)\s*</patch>"
     matches = re.findall(patch_tag_pattern, response, re.DOTALL | re.IGNORECASE)
     if matches:
         for match in matches:
@@ -49,7 +49,7 @@ def extract_patch(response: str) -> str | None:
                 return match.strip()
 
     # Try <diff>...</diff> tags
-    diff_tag_pattern = r'<diff>\s*(.*?)\s*</diff>'
+    diff_tag_pattern = r"<diff>\s*(.*?)\s*</diff>"
     matches = re.findall(diff_tag_pattern, response, re.DOTALL | re.IGNORECASE)
     if matches:
         for match in matches:
@@ -76,11 +76,11 @@ def _looks_like_diff(text: str) -> bool:
         True if text looks like a diff, False otherwise.
     """
     indicators = [
-        r'^---\s+\S+',  # --- a/file
-        r'^\+\+\+\s+\S+',  # +++ b/file
-        r'^@@\s+-\d+',  # @@ -line
-        r'^diff\s+--git',  # diff --git
-        r'^Index:\s+',  # Index: (svn style)
+        r"^---\s+\S+",  # --- a/file
+        r"^\+\+\+\s+\S+",  # +++ b/file
+        r"^@@\s+-\d+",  # @@ -line
+        r"^diff\s+--git",  # diff --git
+        r"^Index:\s+",  # Index: (svn style)
     ]
 
     for pattern in indicators:
@@ -100,28 +100,28 @@ def _extract_raw_diff(response: str) -> str | None:
     Returns:
         Extracted diff or None.
     """
-    lines = response.split('\n')
+    lines = response.split("\n")
     diff_lines = []
     in_diff = False
 
     for line in lines:
         # Start of diff
-        if re.match(r'^(diff\s+--git|---\s+a/|Index:)', line):
+        if re.match(r"^(diff\s+--git|---\s+a/|Index:)", line):
             in_diff = True
 
         if in_diff:
             # Check for end of diff (non-diff content)
             if line and not _is_diff_line(line):
                 # Allow some non-diff lines (empty, comments)
-                if not re.match(r'^(\s*$|#|//)', line):
+                if not re.match(r"^(\s*$|#|//)", line):
                     # Check if we have a complete diff
-                    if diff_lines and _looks_like_diff('\n'.join(diff_lines)):
+                    if diff_lines and _looks_like_diff("\n".join(diff_lines)):
                         break
 
             diff_lines.append(line)
 
-    if diff_lines and _looks_like_diff('\n'.join(diff_lines)):
-        return '\n'.join(diff_lines).strip()
+    if diff_lines and _looks_like_diff("\n".join(diff_lines)):
+        return "\n".join(diff_lines).strip()
 
     return None
 
@@ -137,21 +137,21 @@ def _is_diff_line(line: str) -> bool:
         True if line is a valid diff line.
     """
     patterns = [
-        r'^diff\s+--git',
-        r'^index\s+[0-9a-f]+',
-        r'^---\s+',
-        r'^\+\+\+\s+',
-        r'^@@\s+',
-        r'^[-+\s]',  # Changed/context lines
-        r'^\\ No newline',
-        r'^Binary files',
-        r'^new file mode',
-        r'^deleted file mode',
-        r'^similarity index',
-        r'^rename from',
-        r'^rename to',
-        r'^old mode',
-        r'^new mode',
+        r"^diff\s+--git",
+        r"^index\s+[0-9a-f]+",
+        r"^---\s+",
+        r"^\+\+\+\s+",
+        r"^@@\s+",
+        r"^[-+\s]",  # Changed/context lines
+        r"^\\ No newline",
+        r"^Binary files",
+        r"^new file mode",
+        r"^deleted file mode",
+        r"^similarity index",
+        r"^rename from",
+        r"^rename to",
+        r"^old mode",
+        r"^new mode",
     ]
 
     for pattern in patterns:
@@ -182,9 +182,9 @@ def repair_patch(patch: str) -> str:
         return patch
 
     # Normalize line endings
-    patch = patch.replace('\r\n', '\n').replace('\r', '\n')
+    patch = patch.replace("\r\n", "\n").replace("\r", "\n")
 
-    lines = patch.split('\n')
+    lines = patch.split("\n")
     repaired_lines = []
 
     i = 0
@@ -192,54 +192,54 @@ def repair_patch(patch: str) -> str:
         line = lines[i]
 
         # Fix --- lines missing a/ prefix
-        if re.match(r'^---\s+(?!a/)(\S+)', line):
-            match = re.match(r'^---\s+(\S+)(.*)', line)
+        if re.match(r"^---\s+(?!a/)(\S+)", line):
+            match = re.match(r"^---\s+(\S+)(.*)", line)
             if match:
                 filepath = match.group(1)
                 rest = match.group(2)
                 # Don't add prefix if it's /dev/null
-                if filepath != '/dev/null':
-                    line = f'--- a/{filepath}{rest}'
+                if filepath != "/dev/null":
+                    line = f"--- a/{filepath}{rest}"
                     logger.debug(f"Fixed --- line: {line}")
 
         # Fix +++ lines missing b/ prefix
-        elif re.match(r'^\+\+\+\s+(?!b/)(\S+)', line):
-            match = re.match(r'^\+\+\+\s+(\S+)(.*)', line)
+        elif re.match(r"^\+\+\+\s+(?!b/)(\S+)", line):
+            match = re.match(r"^\+\+\+\s+(\S+)(.*)", line)
             if match:
                 filepath = match.group(1)
                 rest = match.group(2)
-                if filepath != '/dev/null':
-                    line = f'+++ b/{filepath}{rest}'
+                if filepath != "/dev/null":
+                    line = f"+++ b/{filepath}{rest}"
                     logger.debug(f"Fixed +++ line: {line}")
 
         # Fix hunk headers with incorrect spacing
-        elif re.match(r'^@@.*@@', line):
+        elif re.match(r"^@@.*@@", line):
             # Normalize hunk header format
-            match = re.match(r'^@@\s*-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s*@@(.*)$', line)
+            match = re.match(r"^@@\s*-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s*@@(.*)$", line)
             if match:
                 old_start = match.group(1)
-                old_count = match.group(2) or '1'
+                old_count = match.group(2) or "1"
                 new_start = match.group(3)
-                new_count = match.group(4) or '1'
+                new_count = match.group(4) or "1"
                 context = match.group(5)
-                line = f'@@ -{old_start},{old_count} +{new_start},{new_count} @@{context}'
+                line = f"@@ -{old_start},{old_count} +{new_start},{new_count} @@{context}"
 
         # Fix context lines that lost their leading space
         elif i > 0 and repaired_lines:
             prev_line = repaired_lines[-1]
             # If previous was a hunk header and this line doesn't start with diff marker
-            if prev_line.startswith('@@') and line and line[0] not in ['+', '-', ' ', '@', '\\']:
+            if prev_line.startswith("@@") and line and line[0] not in ["+", "-", " ", "@", "\\"]:
                 # Likely a context line missing its space
-                line = ' ' + line
+                line = " " + line
                 logger.debug("Added missing space to context line")
 
         repaired_lines.append(line)
         i += 1
 
     # Ensure patch ends with newline
-    result = '\n'.join(repaired_lines)
-    if result and not result.endswith('\n'):
-        result += '\n'
+    result = "\n".join(repaired_lines)
+    if result and not result.endswith("\n"):
+        result += "\n"
 
     return result
 
@@ -262,7 +262,7 @@ def validate_patch(patch: str) -> tuple[bool, list[str]]:
     if not _looks_like_diff(patch):
         return False, ["Does not appear to be a valid diff"]
 
-    lines = patch.split('\n')
+    lines = patch.split("\n")
 
     has_file_header = False
     has_hunk = False
@@ -275,24 +275,24 @@ def validate_patch(patch: str) -> tuple[bool, list[str]]:
 
     for i, line in enumerate(lines):
         # Check for file headers
-        if line.startswith('---'):
+        if line.startswith("---"):
             has_file_header = True
-            if not re.match(r'^---\s+(a/\S+|/dev/null)', line):
+            if not re.match(r"^---\s+(a/\S+|/dev/null)", line):
                 issues.append(f"Line {i+1}: --- line may be missing 'a/' prefix")
 
-        elif line.startswith('+++'):
-            if not re.match(r'^\+\+\+\s+(b/\S+|/dev/null)', line):
+        elif line.startswith("+++"):
+            if not re.match(r"^\+\+\+\s+(b/\S+|/dev/null)", line):
                 issues.append(f"Line {i+1}: +++ line may be missing 'b/' prefix")
 
         # Check hunk headers
-        elif line.startswith('@@'):
+        elif line.startswith("@@"):
             has_hunk = True
             in_hunk = True
             hunk_additions = 0
             hunk_deletions = 0
             hunk_context = 0
 
-            match = re.match(r'^@@\s*-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s*@@', line)
+            match = re.match(r"^@@\s*-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s*@@", line)
             if match:
                 expected_old_lines = int(match.group(2) or 1)
                 expected_new_lines = int(match.group(4) or 1)
@@ -301,15 +301,15 @@ def validate_patch(patch: str) -> tuple[bool, list[str]]:
 
         # Count lines in hunk
         elif in_hunk and line:
-            if line.startswith('+') and not line.startswith('+++'):
+            if line.startswith("+") and not line.startswith("+++"):
                 hunk_additions += 1
-            elif line.startswith('-') and not line.startswith('---'):
+            elif line.startswith("-") and not line.startswith("---"):
                 hunk_deletions += 1
-            elif line.startswith(' '):
+            elif line.startswith(" "):
                 hunk_context += 1
-            elif line.startswith('\\'):
+            elif line.startswith("\\"):
                 pass  # "\ No newline at end of file"
-            elif line.startswith('diff ') or line.startswith('index '):
+            elif line.startswith("diff ") or line.startswith("index "):
                 in_hunk = False
             else:
                 issues.append(f"Line {i+1}: Unexpected line in hunk: {line[:50]}")

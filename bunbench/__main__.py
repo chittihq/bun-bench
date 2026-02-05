@@ -11,8 +11,7 @@ import sys
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -105,10 +104,7 @@ def cmd_build_images(args: argparse.Namespace) -> int:
 
         # Filter instances if specific IDs requested
         if args.instance_ids:
-            dataset = [
-                inst for inst in dataset
-                if inst.get("instance_id") in args.instance_ids
-            ]
+            dataset = [inst for inst in dataset if inst.get("instance_id") in args.instance_ids]
 
         logger.info(f"Building images for {len(dataset)} instances")
 
@@ -161,7 +157,8 @@ def cmd_report(args: argparse.Namespace) -> int:
             report2 = load_report(args.compare)
 
             comparison = compare_reports(
-                report1, report2,
+                report1,
+                report2,
                 label1=args.report,
                 label2=args.compare,
             )
@@ -226,6 +223,7 @@ def cmd_version(args: argparse.Namespace) -> int:
         Exit code (always 0).
     """
     from bunbench import __version__
+
     print(f"Bun-Bench version {__version__}")
     return 0
 
@@ -242,11 +240,7 @@ def create_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    parser.add_argument(
-        "--version", "-V",
-        action="store_true",
-        help="Print version and exit"
-    )
+    parser.add_argument("--version", "-V", action="store_true", help="Print version and exit")
 
     subparsers = parser.add_subparsers(
         dest="command",
@@ -261,56 +255,34 @@ def create_parser() -> argparse.ArgumentParser:
         description="Evaluate model-generated patches against the benchmark",
     )
     eval_parser.add_argument(
-        "--dataset", "-d",
-        required=True,
-        help="Path to dataset JSON or HuggingFace identifier"
+        "--dataset", "-d", required=True, help="Path to dataset JSON or HuggingFace identifier"
     )
     eval_parser.add_argument(
-        "--predictions", "-p",
-        required=True,
-        help="Path to predictions JSON (instance_id -> patch)"
+        "--predictions", "-p", required=True, help="Path to predictions JSON (instance_id -> patch)"
     )
     eval_parser.add_argument(
-        "--output", "-o",
-        default="./results",
-        help="Output directory (default: ./results)"
+        "--output", "-o", default="./results", help="Output directory (default: ./results)"
     )
     eval_parser.add_argument(
-        "--workers", "-w",
-        type=int,
-        default=4,
-        help="Number of parallel workers (default: 4)"
+        "--workers", "-w", type=int, default=4, help="Number of parallel workers (default: 4)"
     )
     eval_parser.add_argument(
-        "--timeout", "-t",
+        "--timeout",
+        "-t",
         type=int,
         default=300,
-        help="Timeout per evaluation in seconds (default: 300)"
+        help="Timeout per evaluation in seconds (default: 300)",
     )
     eval_parser.add_argument(
-        "--docker-prefix",
-        default="bunbench",
-        help="Docker image prefix (default: bunbench)"
+        "--docker-prefix", default="bunbench", help="Docker image prefix (default: bunbench)"
     )
     eval_parser.add_argument(
-        "--force-rebuild",
-        action="store_true",
-        help="Force rebuild Docker images"
+        "--force-rebuild", action="store_true", help="Force rebuild Docker images"
     )
+    eval_parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
+    eval_parser.add_argument("--instance-ids", nargs="+", help="Specific instance IDs to evaluate")
     eval_parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose output"
-    )
-    eval_parser.add_argument(
-        "--instance-ids",
-        nargs="+",
-        help="Specific instance IDs to evaluate"
-    )
-    eval_parser.add_argument(
-        "--no-output",
-        action="store_true",
-        help="Don't include test output in report"
+        "--no-output", action="store_true", help="Don't include test output in report"
     )
     eval_parser.set_defaults(func=cmd_evaluate)
 
@@ -321,25 +293,15 @@ def create_parser() -> argparse.ArgumentParser:
         description="Pre-build Docker images for benchmark instances",
     )
     build_parser.add_argument(
-        "--dataset", "-d",
-        required=True,
-        help="Path to dataset JSON or HuggingFace identifier"
+        "--dataset", "-d", required=True, help="Path to dataset JSON or HuggingFace identifier"
     )
     build_parser.add_argument(
-        "--docker-prefix",
-        default="bunbench",
-        help="Docker image prefix (default: bunbench)"
+        "--docker-prefix", default="bunbench", help="Docker image prefix (default: bunbench)"
     )
     build_parser.add_argument(
-        "--force-rebuild",
-        action="store_true",
-        help="Force rebuild existing images"
+        "--force-rebuild", action="store_true", help="Force rebuild existing images"
     )
-    build_parser.add_argument(
-        "--instance-ids",
-        nargs="+",
-        help="Specific instance IDs to build"
-    )
+    build_parser.add_argument("--instance-ids", nargs="+", help="Specific instance IDs to build")
     build_parser.set_defaults(func=cmd_build_images)
 
     # Report command
@@ -348,19 +310,9 @@ def create_parser() -> argparse.ArgumentParser:
         help="View or compare evaluation reports",
         description="View evaluation reports or compare two reports",
     )
-    report_parser.add_argument(
-        "report",
-        help="Path to evaluation report JSON"
-    )
-    report_parser.add_argument(
-        "--compare", "-c",
-        help="Path to second report for comparison"
-    )
-    report_parser.add_argument(
-        "--json", "-j",
-        action="store_true",
-        help="Output as JSON"
-    )
+    report_parser.add_argument("report", help="Path to evaluation report JSON")
+    report_parser.add_argument("--compare", "-c", help="Path to second report for comparison")
+    report_parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
     report_parser.set_defaults(func=cmd_report)
 
     return parser

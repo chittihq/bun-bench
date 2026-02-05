@@ -25,6 +25,7 @@ EVAL_IMAGE_PREFIX = f"{IMAGE_PREFIX}.eval"
 @dataclass
 class BuildResult:
     """Result of a Docker build operation."""
+
     success: bool
     image_name: str
     image_id: str | None = None
@@ -79,9 +80,7 @@ def image_exists(image_name: str) -> bool:
     """
     try:
         result = subprocess.run(
-            ["docker", "image", "inspect", image_name],
-            capture_output=True,
-            text=True
+            ["docker", "image", "inspect", image_name], capture_output=True, text=True
         )
         return result.returncode == 0
     except Exception as e:
@@ -103,7 +102,7 @@ def get_image_id(image_name: str) -> str | None:
         result = subprocess.run(
             ["docker", "image", "inspect", image_name, "--format", "{{.Id}}"],
             capture_output=True,
-            text=True
+            text=True,
         )
         if result.returncode == 0:
             return result.stdout.strip()
@@ -113,10 +112,7 @@ def get_image_id(image_name: str) -> str | None:
         return None
 
 
-def build_base_image(
-    force_rebuild: bool = False,
-    no_cache: bool = False
-) -> BuildResult:
+def build_base_image(force_rebuild: bool = False, no_cache: bool = False) -> BuildResult:
     """
     Build the base Docker image for Bun-Bench.
 
@@ -139,10 +135,7 @@ def build_base_image(
     if not force_rebuild and image_exists(image_name):
         logger.info(f"Base image {image_name} already exists (using cache)")
         return BuildResult(
-            success=True,
-            image_name=image_name,
-            image_id=get_image_id(image_name),
-            cached=True
+            success=True, image_name=image_name, image_id=get_image_id(image_name), cached=True
         )
 
     logger.info(f"Building base image: {image_name}")
@@ -152,16 +145,17 @@ def build_base_image(
 
     if not dockerfile_path.exists():
         return BuildResult(
-            success=False,
-            image_name=image_name,
-            error=f"Dockerfile not found: {dockerfile_path}"
+            success=False, image_name=image_name, error=f"Dockerfile not found: {dockerfile_path}"
         )
 
     # Build command
     cmd = [
-        "docker", "build",
-        "-t", image_name,
-        "-f", str(dockerfile_path),
+        "docker",
+        "build",
+        "-t",
+        image_name,
+        "-f",
+        str(dockerfile_path),
     ]
 
     if no_cache:
@@ -173,45 +167,30 @@ def build_base_image(
     try:
         logger.debug(f"Running: {' '.join(cmd)}")
         result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=1800  # 30 minute timeout
+            cmd, capture_output=True, text=True, timeout=1800  # 30 minute timeout
         )
 
         if result.returncode == 0:
             logger.info(f"Successfully built base image: {image_name}")
             return BuildResult(
-                success=True,
-                image_name=image_name,
-                image_id=get_image_id(image_name)
+                success=True, image_name=image_name, image_id=get_image_id(image_name)
             )
         else:
             logger.error(f"Failed to build base image: {result.stderr}")
-            return BuildResult(
-                success=False,
-                image_name=image_name,
-                error=result.stderr
-            )
+            return BuildResult(success=False, image_name=image_name, error=result.stderr)
     except subprocess.TimeoutExpired:
         return BuildResult(
-            success=False,
-            image_name=image_name,
-            error="Build timed out after 30 minutes"
+            success=False, image_name=image_name, error="Build timed out after 30 minutes"
         )
     except Exception as e:
-        return BuildResult(
-            success=False,
-            image_name=image_name,
-            error=str(e)
-        )
+        return BuildResult(success=False, image_name=image_name, error=str(e))
 
 
 def build_env_image(
     bun_version: str = "latest",
     force_rebuild: bool = False,
     no_cache: bool = False,
-    package_json_path: Path | None = None
+    package_json_path: Path | None = None,
 ) -> BuildResult:
     """
     Build an environment image with a specific Bun version.
@@ -231,10 +210,7 @@ def build_env_image(
     if not force_rebuild and image_exists(image_name):
         logger.info(f"Env image {image_name} already exists (using cache)")
         return BuildResult(
-            success=True,
-            image_name=image_name,
-            image_id=get_image_id(image_name),
-            cached=True
+            success=True, image_name=image_name, image_id=get_image_id(image_name), cached=True
         )
 
     # Ensure base image exists
@@ -243,7 +219,7 @@ def build_env_image(
         return BuildResult(
             success=False,
             image_name=image_name,
-            error=f"Failed to build base image: {base_result.error}"
+            error=f"Failed to build base image: {base_result.error}",
         )
 
     logger.info(f"Building env image: {image_name} with Bun {bun_version}")
@@ -253,9 +229,7 @@ def build_env_image(
 
     if not dockerfile_path.exists():
         return BuildResult(
-            success=False,
-            image_name=image_name,
-            error=f"Dockerfile not found: {dockerfile_path}"
+            success=False, image_name=image_name, error=f"Dockerfile not found: {dockerfile_path}"
         )
 
     # Create a build context directory
@@ -274,11 +248,16 @@ def build_env_image(
 
         # Build command
         cmd = [
-            "docker", "build",
-            "-t", image_name,
-            "-f", str(build_context_path / "Dockerfile"),
-            "--build-arg", f"BASE_IMAGE={BASE_IMAGE_NAME}",
-            "--build-arg", f"BUN_VERSION={bun_version}",
+            "docker",
+            "build",
+            "-t",
+            image_name,
+            "-f",
+            str(build_context_path / "Dockerfile"),
+            "--build-arg",
+            f"BASE_IMAGE={BASE_IMAGE_NAME}",
+            "--build-arg",
+            f"BUN_VERSION={bun_version}",
         ]
 
         if no_cache:
@@ -289,38 +268,23 @@ def build_env_image(
         try:
             logger.debug(f"Running: {' '.join(cmd)}")
             result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=1800  # 30 minute timeout
+                cmd, capture_output=True, text=True, timeout=1800  # 30 minute timeout
             )
 
             if result.returncode == 0:
                 logger.info(f"Successfully built env image: {image_name}")
                 return BuildResult(
-                    success=True,
-                    image_name=image_name,
-                    image_id=get_image_id(image_name)
+                    success=True, image_name=image_name, image_id=get_image_id(image_name)
                 )
             else:
                 logger.error(f"Failed to build env image: {result.stderr}")
-                return BuildResult(
-                    success=False,
-                    image_name=image_name,
-                    error=result.stderr
-                )
+                return BuildResult(success=False, image_name=image_name, error=result.stderr)
         except subprocess.TimeoutExpired:
             return BuildResult(
-                success=False,
-                image_name=image_name,
-                error="Build timed out after 30 minutes"
+                success=False, image_name=image_name, error="Build timed out after 30 minutes"
             )
         except Exception as e:
-            return BuildResult(
-                success=False,
-                image_name=image_name,
-                error=str(e)
-            )
+            return BuildResult(success=False, image_name=image_name, error=str(e))
 
 
 def build_instance_image(
@@ -329,7 +293,7 @@ def build_instance_image(
     base_commit: str = "main",
     test_files_dir: Path | None = None,
     force_rebuild: bool = False,
-    no_cache: bool = False
+    no_cache: bool = False,
 ) -> BuildResult:
     """
     Build an instance image for a specific evaluation.
@@ -352,10 +316,7 @@ def build_instance_image(
     if not force_rebuild and image_exists(image_name):
         logger.info(f"Instance image {image_name} already exists (using cache)")
         return BuildResult(
-            success=True,
-            image_name=image_name,
-            image_id=get_image_id(image_name),
-            cached=True
+            success=True, image_name=image_name, image_id=get_image_id(image_name), cached=True
         )
 
     # Ensure env image exists
@@ -364,7 +325,7 @@ def build_instance_image(
         return BuildResult(
             success=False,
             image_name=image_name,
-            error=f"Failed to build env image: {env_result.error}"
+            error=f"Failed to build env image: {env_result.error}",
         )
 
     logger.info(f"Building instance image: {image_name}")
@@ -374,9 +335,7 @@ def build_instance_image(
 
     if not dockerfile_path.exists():
         return BuildResult(
-            success=False,
-            image_name=image_name,
-            error=f"Dockerfile not found: {dockerfile_path}"
+            success=False, image_name=image_name, error=f"Dockerfile not found: {dockerfile_path}"
         )
 
     # Create a build context directory
@@ -399,12 +358,18 @@ def build_instance_image(
 
         # Build command
         cmd = [
-            "docker", "build",
-            "-t", image_name,
-            "-f", str(build_context_path / "Dockerfile"),
-            "--build-arg", f"ENV_IMAGE={env_image_name}",
-            "--build-arg", f"INSTANCE_ID={instance_id}",
-            "--build-arg", f"BASE_COMMIT={base_commit}",
+            "docker",
+            "build",
+            "-t",
+            image_name,
+            "-f",
+            str(build_context_path / "Dockerfile"),
+            "--build-arg",
+            f"ENV_IMAGE={env_image_name}",
+            "--build-arg",
+            f"INSTANCE_ID={instance_id}",
+            "--build-arg",
+            f"BASE_COMMIT={base_commit}",
         ]
 
         if no_cache:
@@ -418,41 +383,27 @@ def build_instance_image(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=3600  # 60 minute timeout for cloning repo
+                timeout=3600,  # 60 minute timeout for cloning repo
             )
 
             if result.returncode == 0:
                 logger.info(f"Successfully built instance image: {image_name}")
                 return BuildResult(
-                    success=True,
-                    image_name=image_name,
-                    image_id=get_image_id(image_name)
+                    success=True, image_name=image_name, image_id=get_image_id(image_name)
                 )
             else:
                 logger.error(f"Failed to build instance image: {result.stderr}")
-                return BuildResult(
-                    success=False,
-                    image_name=image_name,
-                    error=result.stderr
-                )
+                return BuildResult(success=False, image_name=image_name, error=result.stderr)
         except subprocess.TimeoutExpired:
             return BuildResult(
-                success=False,
-                image_name=image_name,
-                error="Build timed out after 60 minutes"
+                success=False, image_name=image_name, error="Build timed out after 60 minutes"
             )
         except Exception as e:
-            return BuildResult(
-                success=False,
-                image_name=image_name,
-                error=str(e)
-            )
+            return BuildResult(success=False, image_name=image_name, error=str(e))
 
 
 def cleanup_images(
-    prefix: str | None = None,
-    keep_base: bool = True,
-    keep_env: bool = True
+    prefix: str | None = None, keep_base: bool = True, keep_env: bool = True
 ) -> dict:
     """
     Clean up Bun-Bench Docker images.
@@ -472,7 +423,7 @@ def cleanup_images(
         result = subprocess.run(
             ["docker", "images", "--format", "{{.Repository}}:{{.Tag}}", prefix + "*"],
             capture_output=True,
-            text=True
+            text=True,
         )
 
         if result.returncode != 0:
@@ -493,9 +444,7 @@ def cleanup_images(
 
             # Remove image
             rm_result = subprocess.run(
-                ["docker", "rmi", "-f", image],
-                capture_output=True,
-                text=True
+                ["docker", "rmi", "-f", image], capture_output=True, text=True
             )
 
             if rm_result.returncode == 0:
@@ -515,7 +464,7 @@ def get_cache_key(
     image_type: str,
     version: str | None = None,
     instance_id: str | None = None,
-    base_commit: str | None = None
+    base_commit: str | None = None,
 ) -> str:
     """
     Generate a cache key for an image build.
@@ -533,6 +482,6 @@ def get_cache_key(
         "type": image_type,
         "version": version,
         "instance_id": instance_id,
-        "base_commit": base_commit
+        "base_commit": base_commit,
     }
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:12]

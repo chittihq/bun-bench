@@ -49,9 +49,7 @@ class GradingResult:
 
 
 def grade_tests(
-    expected_tests: list[str],
-    parsed_output: ParsedTestOutput,
-    require_pass: bool = True
+    expected_tests: list[str], parsed_output: ParsedTestOutput, require_pass: bool = True
 ) -> GradingResult:
     """
     Grade a set of tests against parsed output.
@@ -106,8 +104,7 @@ def grade_tests(
 
 
 def grade_fail_to_pass(
-    fail_to_pass_tests: list[str],
-    parsed_output: ParsedTestOutput
+    fail_to_pass_tests: list[str], parsed_output: ParsedTestOutput
 ) -> GradingResult:
     """
     Grade FAIL_TO_PASS tests.
@@ -126,8 +123,7 @@ def grade_fail_to_pass(
 
 
 def grade_pass_to_pass(
-    pass_to_pass_tests: list[str],
-    parsed_output: ParsedTestOutput
+    pass_to_pass_tests: list[str], parsed_output: ParsedTestOutput
 ) -> GradingResult:
     """
     Grade PASS_TO_PASS tests.
@@ -146,8 +142,7 @@ def grade_pass_to_pass(
 
 
 def determine_resolution_status(
-    fail_to_pass_result: GradingResult,
-    pass_to_pass_result: GradingResult
+    fail_to_pass_result: GradingResult, pass_to_pass_result: GradingResult
 ) -> ResolvedStatus:
     """
     Determine the overall resolution status based on grading results.
@@ -258,17 +253,13 @@ def get_eval_report(
 
 
 def _build_test_results(
-    expected_tests: list[str],
-    grading_result: GradingResult,
-    parsed: ParsedTestOutput
+    expected_tests: list[str], grading_result: GradingResult, parsed: ParsedTestOutput
 ) -> list[TestResult]:
     """Build detailed test results for the evaluation report."""
     results: list[TestResult] = []
 
     # Build map of actual results
-    actual_map: dict[str, TestResult] = {
-        test["name"]: test for test in parsed.tests
-    }
+    actual_map: dict[str, TestResult] = {test["name"]: test for test in parsed.tests}
 
     for test_name in expected_tests:
         # Try to find actual result
@@ -284,11 +275,13 @@ def _build_test_results(
 
         if actual is None:
             # Test was missing from output
-            results.append({
-                "name": test_name,
-                "status": TestStatus.ERROR.value,
-                "error_message": "Test not found in output",
-            })
+            results.append(
+                {
+                    "name": test_name,
+                    "status": TestStatus.ERROR.value,
+                    "error_message": "Test not found in output",
+                }
+            )
         else:
             results.append(actual)
 
@@ -304,16 +297,13 @@ def _normalize_test_name(name: str) -> str:
     if name.startswith("test "):
         name = name[5:]
     # Remove quotes
-    name = name.replace('"', '').replace("'", '')
+    name = name.replace('"', "").replace("'", "")
     # Normalize whitespace
-    name = ' '.join(name.split())
+    name = " ".join(name.split())
     return name
 
 
-def _find_partial_match(
-    expected: str,
-    actual_tests: list[TestResult]
-) -> TestResult | None:
+def _find_partial_match(expected: str, actual_tests: list[TestResult]) -> TestResult | None:
     """Find a partial match for a test name."""
     expected_normalized = _normalize_test_name(expected)
     expected_words = set(expected_normalized.split())
@@ -373,8 +363,7 @@ def summarize_evaluation(result: EvaluationResult) -> str:
 
     # Add failed test details
     failed_f2p = [
-        t for t in result["fail_to_pass_results"]
-        if t["status"] != TestStatus.PASSED.value
+        t for t in result["fail_to_pass_results"] if t["status"] != TestStatus.PASSED.value
     ]
     if failed_f2p:
         lines.append("")
@@ -385,8 +374,7 @@ def summarize_evaluation(result: EvaluationResult) -> str:
                 lines.append(f"    Error: {test['error_message']}")
 
     failed_p2p = [
-        t for t in result["pass_to_pass_results"]
-        if t["status"] != TestStatus.PASSED.value
+        t for t in result["pass_to_pass_results"] if t["status"] != TestStatus.PASSED.value
     ]
     if failed_p2p:
         lines.append("")
@@ -396,4 +384,4 @@ def summarize_evaluation(result: EvaluationResult) -> str:
             if "error_message" in test:
                 lines.append(f"    Error: {test['error_message']}")
 
-    return '\n'.join(lines)
+    return "\n".join(lines)

@@ -67,7 +67,7 @@ Wrap your patch in ```diff``` code blocks.
 """
 
 # Example patch format for reference
-EXAMPLE_PATCH = '''```diff
+EXAMPLE_PATCH = """```diff
 --- a/src/bun.js/api/server.zig
 +++ b/src/bun.js/api/server.zig
 @@ -1234,7 +1234,7 @@ fn calculateContentLength(body: []const u8) usize {
@@ -83,7 +83,7 @@ EXAMPLE_PATCH = '''```diff
 +    expect(response.headers.get("Content-Length")).toBe("15");
 +  });
  });
-```'''
+```"""
 
 
 def format_prompt(
@@ -108,9 +108,7 @@ def format_prompt(
         ValueError: If an unknown style is provided.
     """
     if style == "minimal":
-        user_prompt = USER_PROMPT_MINIMAL.format(
-            problem_statement=problem_statement
-        )
+        user_prompt = USER_PROMPT_MINIMAL.format(problem_statement=problem_statement)
     elif style == "default":
         user_prompt = USER_PROMPT.format(
             problem_statement=problem_statement,
@@ -127,7 +125,9 @@ def format_prompt(
         user_prompt = f"{SYSTEM_PROMPT}\n\n---\n\n{USER_PROMPT.format(problem_statement=problem_statement, code_context=code_context if code_context else 'No additional context provided.')}"
         return {"system": "", "user": user_prompt}
     else:
-        raise ValueError(f"Unknown prompt style: {style}. Use 'default', 'minimal', 'detailed', or 'chat'.")
+        raise ValueError(
+            f"Unknown prompt style: {style}. Use 'default', 'minimal', 'detailed', or 'chat'."
+        )
 
     if additional_instructions:
         user_prompt += f"\n\n## Additional Instructions\n\n{additional_instructions}"
