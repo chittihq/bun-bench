@@ -326,7 +326,7 @@ class TestLogParser:
     def test_parse_expect_calls(self, sample_bun_test_output: str):
         """Test parsing of expect() call count."""
         result = LogParser.parse_bun_test_output(sample_bun_test_output)
-        assert result.expect_calls == 45
+        assert result.expect_calls == 10  # fixture has 10 expect() calls
 
     def test_parse_empty_output(self):
         """Test parsing of empty output."""
