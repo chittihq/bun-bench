@@ -1,0 +1,30 @@
+# Include documentation
+include README.md
+include LICENSE
+include CHANGELOG.md
+include CONTRIBUTING.md
+
+# Include package data
+include bunbench/py.typed
+
+# Include configuration files
+include pyproject.toml
+include setup.py
+
+# Include dataset
+recursive-include dataset *.json
+
+# Include docker files
+recursive-include docker Dockerfile*
+
+# Exclude development files
+exclude Makefile
+exclude .gitignore
+recursive-exclude tests *
+recursive-exclude .github *
+recursive-exclude docs *
+recursive-exclude examples *
+recursive-exclude * __pycache__
+recursive-exclude * *.pyc
+recursive-exclude * *.pyo
+recursive-exclude * .DS_Store
