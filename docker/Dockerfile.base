@@ -1,0 +1,48 @@
+# Dockerfile.base - Base image for Bun-Bench
+# Contains system dependencies and base Bun installation
+
+FROM ubuntu:22.04
+
+LABEL maintainer="bun-bench"
+LABEL description="Base image for Bun-Bench evaluation environment"
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    ca-certificates \
+    unzip \
+    sudo \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN groupadd --gid 1000 bunuser \
+    && useradd --uid 1000 --gid 1000 -m bunuser \
+    && echo "bunuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Switch to non-root user
+USER bunuser
+WORKDIR /home/bunuser
+
+# Install Bun using official installer
+RUN curl -fsSL https://bun.sh/install | bash
+
+# Configure PATH for bun
+ENV BUN_INSTALL="/home/bunuser/.bun"
+ENV PATH="$BUN_INSTALL/bin:$PATH"
+
+# Verify bun installation
+RUN bun --version
+
+# Set default shell
+SHELL ["/bin/bash", "-c"]
+
+# Default command
+CMD ["/bin/bash"]

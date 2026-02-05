@@ -1,0 +1,61 @@
+bun test v1.0.21
+
+test/http/content-length.test.ts:
+  should calculate correct byte length for UTF-8 ... [PASS] (2.31ms)
+  should handle multi-byte characters in response body ... [PASS] (1.45ms)
+  should work for ASCII content ... [PASS] (0.89ms)
+  should handle empty response body ... [PASS] (0.52ms)
+  should handle mixed ASCII and UTF-8 ... [PASS] (1.12ms)
+
+test/http/headers.test.ts:
+  should set custom headers ... [PASS] (1.23ms)
+  should handle duplicate headers ... [FAIL] (2.45ms)
+    Error: Expected header count 2 but got 1
+      at test/http/headers.test.ts:45:5
+      at processTicksAndRejections (native)
+  should preserve header order ... [SKIP] (0.00ms)
+    Reason: Not implemented yet
+  should handle special characters in header values ... [PASS] (0.98ms)
+
+test/http/basic.test.ts:
+  should start server on specified port ... [PASS] (5.21ms)
+  should handle GET requests ... [PASS] (3.12ms)
+  should handle POST requests with JSON body ... [PASS] (4.56ms)
+  should return 404 for unknown routes ... [PASS] (1.87ms)
+  should handle concurrent requests ... [FAIL] (15.32ms)
+    Error: Request timeout after 5000ms
+      at test/http/basic.test.ts:125:7
+  should gracefully shutdown ... [PASS] (2.34ms)
+
+test/websocket/connection.test.ts:
+  should connect to websocket server ... [PASS] (10.32ms)
+  should send and receive text messages ... [PASS] (8.76ms)
+  should send and receive binary messages ... [PASS] (9.12ms)
+  should handle ping/pong frames ... [PASS] (3.45ms)
+  should close connection gracefully ... [PASS] (2.87ms)
+  should handle connection errors ... [SKIP] (0.00ms)
+    Reason: Requires network isolation
+
+test/sqlite/basic.test.ts:
+  should open database ... [PASS] (1.23ms)
+  should execute queries ... [PASS] (2.34ms)
+  should handle prepared statements ... [PASS] (1.87ms)
+  should handle transactions ... [PASS] (3.45ms)
+  should handle errors gracefully ... [PASS] (0.98ms)
+
+test/file/operations.test.ts:
+  should read file contents ... [PASS] (0.76ms)
+  should write file contents ... [PASS] (1.23ms)
+  should append to file ... [PASS] (0.89ms)
+  should delete file ... [PASS] (0.45ms)
+  should handle large files ... [FAIL] (125.67ms)
+    Error: Memory allocation failed
+      at test/file/operations.test.ts:89:3
+  should stream file contents ... [PASS] (5.67ms)
+
+ 28 pass
+ 3 fail
+ 2 skip
+ 45 expect() calls
+
+Ran 33 tests in 215.42ms

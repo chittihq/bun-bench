@@ -1,0 +1,58 @@
+# Dockerfile.instance - Instance image for specific evaluation
+# Sets up the test environment for a specific commit/instance
+
+ARG ENV_IMAGE=bunbench.env.latest
+FROM ${ENV_IMAGE}
+
+LABEL maintainer="bun-bench"
+LABEL description="Bun-Bench evaluation instance"
+
+# Instance configuration
+ARG INSTANCE_ID=default
+ARG BASE_COMMIT=main
+ARG BUN_REPO_URL=https://github.com/oven-sh/bun.git
+
+# Store instance info as environment variables
+ENV INSTANCE_ID=${INSTANCE_ID}
+ENV BASE_COMMIT=${BASE_COMMIT}
+ENV BUN_REPO_URL=${BUN_REPO_URL}
+
+# Switch to bunuser
+USER bunuser
+
+# Set up workspace
+WORKDIR /home/bunuser/workspace
+
+# Create directories for test environment
+RUN mkdir -p /home/bunuser/workspace/tests \
+    && mkdir -p /home/bunuser/workspace/results \
+    && mkdir -p /home/bunuser/workspace/bun-repo
+
+# Clone bun repository (shallow clone for efficiency)
+# Only clone if we need to test against bun source
+RUN if [ "$BASE_COMMIT" != "none" ] && [ "$BASE_COMMIT" != "" ]; then \
+        git clone --depth 100 --single-branch ${BUN_REPO_URL} /home/bunuser/workspace/bun-repo \
+        && cd /home/bunuser/workspace/bun-repo \
+        && git fetch --depth 100 origin ${BASE_COMMIT} 2>/dev/null || true \
+        && git checkout ${BASE_COMMIT} 2>/dev/null || git checkout -b test-branch; \
+    fi
+
+# Set working directory to tests
+WORKDIR /home/bunuser/workspace/tests
+
+# Copy any test files (optional, can be mounted at runtime)
+COPY --chown=bunuser:bunuser . ./
+
+# Install test dependencies if package.json exists
+RUN if [ -f package.json ]; then bun install; fi
+
+# Environment variables for test execution
+ENV TEST_RESULTS_DIR=/home/bunuser/workspace/results
+ENV TEST_TIMEOUT=300
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD bun --version || exit 1
+
+# Default command - can be overridden at runtime
+CMD ["/bin/bash"]

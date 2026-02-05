@@ -1,0 +1,48 @@
+{
+  "name": "bun-bench",
+  "version": "0.1.0",
+  "description": "Benchmark for evaluating LLMs on Bun runtime issues",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "lint": "eslint src tests",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit",
+    "build": "bun build src/index.ts --outdir dist",
+    "eval": "bun run src/evaluate.ts",
+    "eval:single": "bun run examples/run_simple_eval.ts",
+    "pytest": "python -m pytest tests/ -v",
+    "pytest:cov": "python -m pytest tests/ -v --cov=src --cov-report=term-missing"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bun-bench/bun-bench.git"
+  },
+  "keywords": [
+    "bun",
+    "benchmark",
+    "llm",
+    "evaluation",
+    "runtime",
+    "javascript",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/bun-bench/bun-bench/issues"
+  },
+  "homepage": "https://github.com/bun-bench/bun-bench#readme",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}

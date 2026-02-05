@@ -1,0 +1,199 @@
+1. [Bug Fix] Bun.serve() returns incorrect Content-Length header when response body contains multi-byte UTF-8 characters. The server reports byte length as character length, causing truncated responses for non-ASCII content. Reproduce with: `new Response("こんにちは")` returns Content-Length: 5 instead of 15. Fix the response header calculation to use byte length.
+
+2. [Bug Fix] bun:sqlite prepared statements leak memory when using `stmt.finalize()` inside a loop with 10,000+ iterations. The memory grows unbounded despite explicit finalization. Profile the issue and implement proper cleanup in the native binding layer.
+
+3. [Feature] Implement `Bun.semver()` API for semantic version comparison. Should support: `Bun.semver.satisfies("1.2.3", "^1.0.0")`, `Bun.semver.gt()`, `Bun.semver.lt()`, `Bun.semver.valid()`. Match npm semver package behavior but with native performance.
+
+4. [Bug Fix] WebSocket server crashes with SIGSEGV when client sends a close frame with reason longer than 123 bytes. The crash occurs in the native WebSocket frame parser. Add bounds checking and truncate oversized close reasons per RFC 6455.
+
+5. [Bug Fix] `Bun.file().text()` hangs indefinitely on named pipes (FIFOs) when no data is available. Expected behavior: should timeout or return empty. Implement non-blocking read with configurable timeout for special file types.
+
+6. [Feature] Add `--experimental-strip-types` flag to allow running TypeScript files with type annotations stripped at parse time instead of full transpilation. Should preserve source maps and line numbers for stack traces.
+
+7. [Bug Fix] `bun test` snapshot testing fails to update snapshots when test file path contains spaces. The `--update-snapshots` flag writes to incorrect path with spaces URL-encoded. Fix path handling in snapshot writer.
+
+8. [Bug Fix] Bun.spawn() with `stdin: "pipe"` deadlocks when writing more than 64KB to stdin before reading stdout. Implement proper pipe buffer management to prevent blocking when child process output buffer fills.
+
+9. [Feature] Implement `Bun.dns.resolve()` with support for all record types (A, AAAA, MX, TXT, CNAME, NS, SOA, SRV). Currently only A records work. Add full DNS resolution matching Node.js dns.promises API.
+
+10. [Bug Fix] Hot module reloading (HMR) in `bun --hot` fails to detect changes in files imported via package.json "exports" field with conditional exports. The file watcher doesn't resolve the actual file path from export maps.
+
+11. [Bug Fix] `fetch()` with `redirect: "manual"` still follows redirects for 307/308 status codes. Should return the redirect response directly. Fix redirect handling to respect the manual mode for all 3xx codes.
+
+12. [Feature] Add `Bun.gzip()` and `Bun.gunzip()` streaming APIs that work with `ReadableStream`. Current `Bun.gzipSync()` loads entire content into memory. Implement streaming compression with backpressure support.
+
+13. [Bug Fix] bun:sqlite `db.query().all()` returns incorrect BigInt values for INTEGER columns > 2^53. JavaScript loses precision silently. Add automatic BigInt conversion for large integers and document the behavior.
+
+14. [Bug Fix] `Bun.serve()` with TLS enabled doesn't send intermediate certificates from the cert chain, causing "unable to verify leaf signature" errors in clients. Fix certificate chain handling to include all intermediate certs.
+
+15. [Feature] Implement `Bun.inspect()` custom inspection via `Symbol.for("bun.inspect")` on objects, similar to Node.js `util.inspect.custom`. Should support depth limiting, colors, and circular reference handling.
+
+16. [Bug Fix] `bun install` with `--frozen-lockfile` succeeds even when lockfile is outdated if only devDependencies changed. Should fail when any dependency in lockfile doesn't match package.json.
+
+17. [Bug Fix] FormData parsing in Request body fails when boundary contains special regex characters like `+` or `$`. The multipart parser uses regex without escaping the boundary. Fix boundary handling in multipart parser.
+
+18. [Feature] Add `Bun.password.hash()` and `Bun.password.verify()` using Argon2id with configurable memory/time/parallelism parameters. Should be async and use worker threads to avoid blocking the event loop.
+
+19. [Bug Fix] `Bun.file().writer()` with `highWaterMark` option doesn't properly apply backpressure. Writing faster than disk I/O causes unbounded memory growth. Implement proper write buffering with flow control.
+
+20. [Bug Fix] `bun test` with `--coverage` reports 0% coverage for files that use top-level await, even when code is executed. The coverage instrumentation breaks on TLA. Fix AST transformation for coverage with TLA.
+
+21. [Feature] Implement `Bun.udpSocket()` for UDP datagram support. Should include: `send()`, `receive()`, multicast join/leave, and broadcast support. Match Deno's `Deno.listenDatagram()` API patterns.
+
+22. [Bug Fix] `import.meta.resolve()` returns file:// URLs on Windows with forward slashes that Node.js APIs can't handle. Should return platform-appropriate paths or properly formatted file:// URLs with drive letters.
+
+23. [Bug Fix] `Bun.serve()` WebSocket upgrade fails silently when request headers exceed 8KB. No error is thrown and connection hangs. Add proper error response (431 Request Header Fields Too Large).
+
+24. [Feature] Add `bun pm patch <package>` command to create and apply patches to node_modules packages, persisting in a patches/ directory. Should work with bun install to reapply patches automatically.
+
+25. [Bug Fix] `bun build` with `--splitting` generates invalid chunk imports when entry points are in different directories. Relative import paths between chunks resolve incorrectly. Fix chunk path resolution.
+
+26. [Bug Fix] `Bun.$` shell interpolation doesn't escape values containing newlines, allowing command injection. `Bun.$`echo ${userInput}`` with `userInput = "a\n; rm -rf /"` executes the injected command. Fix escaping.
+
+27. [Feature] Implement `Bun.Transpiler` streaming mode that can transpile TypeScript/JSX from a ReadableStream and output to a WritableStream, enabling transform streams for build pipelines.
+
+28. [Bug Fix] bun:sqlite WAL mode checkpoint fails with "database is locked" when using multiple concurrent read transactions. Implement proper WAL checkpoint scheduling that waits for readers.
+
+29. [Bug Fix] `fetch()` doesn't send cookies set via `document.cookie` in Bun when running with DOM APIs enabled via --experimental-dom. Cookie jar is not shared with fetch credentials.
+
+30. [Feature] Add `Bun.color()` API for terminal color support with automatic detection: `Bun.color.red("error")`, `Bun.color.rgb(255,0,0)("text")`. Should respect NO_COLOR env and detect TTY.
+
+31. [Bug Fix] `bun test` watch mode (`--watch`) doesn't re-run tests when only a `.json` fixture file changes. File watcher filters to only .ts/.js/.tsx/.jsx. Add configurable watch patterns.
+
+32. [Bug Fix] `Response.clone()` on a Response with a large body (>100MB) causes OOM. The clone operation loads entire body into memory. Implement proper tee() stream cloning with lazy evaluation.
+
+33. [Feature] Implement `Bun.serve()` HTTP/2 server push via `response.push()` method to proactively send resources. Should integrate with ALPN negotiation and priority hints.
+
+34. [Bug Fix] `Bun.spawnSync()` with `timeout` option doesn't kill grandchild processes. Only the direct child is killed, leaving orphaned processes. Implement process group killing with SIGKILL fallback.
+
+35. [Bug Fix] `bun install` fails silently when postinstall script exits with code 0 but writes to stderr. Should distinguish between warning output and actual failures. Add --strict-scripts flag.
+
+36. [Feature] Add `Bun.nanoseconds()` high-resolution timer returning BigInt nanoseconds since arbitrary epoch. Current `Bun.nanoseconds()` returns number which loses precision above 2^53 ns (~104 days).
+
+37. [Bug Fix] `Bun.serve()` doesn't handle Expect: 100-continue correctly. Server should send "100 Continue" before client sends body. Currently client hangs waiting for continue response.
+
+38. [Bug Fix] `bun:sqlite` BLOB columns returned as Uint8Array lose data when original blob contains null bytes followed by data. The native binding treats null as string terminator. Fix BLOB handling.
+
+39. [Feature] Implement `Bun.which()` that searches PATH for executable and returns full path or null. Should support Windows PATHEXT, check execute permissions on Unix, and handle symlinks.
+
+40. [Bug Fix] `Bun.build()` with `external: ["*.node"]` pattern doesn't work - native addon imports are still bundled and fail at runtime. Glob patterns in external array not implemented.
+
+41. [Bug Fix] `bun test` `--bail` flag doesn't stop test run immediately after first failure in `--parallel` mode. Worker processes continue running. Implement cross-worker bail signaling.
+
+42. [Feature] Add `Bun.ffi.dlopen()` support for loading symbols by ordinal on Windows. Currently only named exports work. Implement ordinal-based symbol resolution for Windows DLLs.
+
+43. [Bug Fix] `Bun.file()` stat() returns incorrect mtime on 32-bit systems for files modified after 2038. The timestamp overflows. Use 64-bit time_t representation internally.
+
+44. [Bug Fix] `fetch()` with `keepalive: true` doesn't actually reuse TCP connections for same-origin requests. Each fetch opens new connection. Implement connection pooling per origin.
+
+45. [Feature] Implement `bun run --filter` to run scripts in monorepo packages matching pattern: `bun run --filter="packages/*" test`. Should support glob patterns and topological ordering.
+
+46. [Bug Fix] `Bun.serve()` sends chunked transfer-encoding for HEAD requests which is invalid per HTTP spec. HEAD responses must not have body or transfer-encoding. Fix response serialization for HEAD.
+
+47. [Bug Fix] `bun:sqlite` prepared statement with RETURNING clause returns undefined for generated columns when using `.run()` instead of `.get()`. Return value should include RETURNING data regardless of method.
+
+48. [Feature] Add `Bun.randomUUID({ disableEntropyCache: true })` option for security-sensitive contexts that require fresh entropy per call instead of batched random number generation.
+
+49. [Bug Fix] `Bun.write()` to symlink writes to the symlink file itself instead of following to target when target doesn't exist. Should create target file, not replace symlink. Fix symlink resolution.
+
+50. [Bug Fix] `bun test` mocking with `spyOn()` doesn't restore original implementation when test file has top-level await that throws. Cleanup hooks are skipped. Implement guaranteed spy restoration.
+
+51. [Bug Fix] PostgreSQL connection pool exhaustion when using `pool.query()` inside Promise.all() with 100+ concurrent queries. Connections aren't returned to pool when query times out. Implement proper connection release on timeout and cancellation.
+
+52. [Bug Fix] MySQL driver returns DECIMAL columns as strings instead of numbers, but FLOAT columns as numbers, causing inconsistent type handling. Implement configurable type coercion with `decimalAsNumber: true` option.
+
+53. [Feature] Implement PostgreSQL LISTEN/NOTIFY support in Bun's pg driver. Should provide `client.on('notification', callback)` API and automatic reconnection with resubscription to channels.
+
+54. [Bug Fix] PostgreSQL JSONB column queries with `@>` containment operator fail when parameter contains arrays. The parameter serialization doesn't handle nested arrays correctly. Fix JSON parameter binding for complex types.
+
+55. [Bug Fix] MySQL INSERT with `ON DUPLICATE KEY UPDATE` returns incorrect `affectedRows` count. Returns 2 for updates instead of 1, breaking upsert detection logic. Normalize affected rows reporting.
+
+56. [Feature] Add PostgreSQL COPY protocol support for bulk inserts: `await client.copyFrom('COPY users FROM STDIN', csvStream)`. Should handle backpressure and support CSV/binary formats.
+
+57. [Bug Fix] PostgreSQL array columns with NULL elements return `['null']` (string) instead of `[null]` (actual null). Array parser doesn't distinguish between NULL keyword and 'null' string. Fix array parsing.
+
+58. [Bug Fix] MySQL connection fails silently when server requires `caching_sha2_password` auth and SSL is disabled. Should throw clear error explaining auth plugin requirements instead of hanging.
+
+59. [Feature] Implement MySQL binary protocol for prepared statements. Currently uses text protocol which requires re-parsing on server. Binary protocol improves performance for repeated queries.
+
+60. [Bug Fix] PostgreSQL `RETURNING *` clause returns stale data when trigger modifies row. The returned data reflects pre-trigger values. Ensure RETURNING fetches post-trigger row state.
+
+61. [Bug Fix] MySQL BIGINT UNSIGNED columns overflow to negative numbers in JavaScript when value > 2^63. Should return BigInt for values > Number.MAX_SAFE_INTEGER. Add `bigIntAsString` option for compatibility.
+
+62. [Feature] Add PostgreSQL advisory lock support: `await client.advisoryLock(lockId)` and `client.advisoryUnlock(lockId)`. Should support both session and transaction-level locks with timeout option.
+
+63. [Bug Fix] PostgreSQL prepared statement cache grows unbounded when using dynamic query strings with interpolated table names. Implement LRU cache with configurable max size and cache bypass for dynamic SQL.
+
+64. [Bug Fix] MySQL TIME columns with microsecond precision lose precision on round-trip. `12:30:45.123456` becomes `12:30:45.123`. Fix temporal type handling to preserve full precision.
+
+65. [Feature] Implement PostgreSQL pipeline mode for batching multiple queries in single network round-trip: `await client.pipeline([query1, query2, query3])`. Should handle partial failures and return results array.
+
+66. [Bug Fix] PostgreSQL ENUM type queries fail after `ALTER TYPE ... ADD VALUE` until connection is recycled. The type OID cache becomes stale. Implement automatic type cache invalidation.
+
+67. [Bug Fix] MySQL `LOAD DATA LOCAL INFILE` fails with "LOAD DATA LOCAL INFILE is forbidden" even when `allowLoadLocalInfile: true` is set. Config option not passed to underlying socket. Fix option propagation.
+
+68. [Feature] Add MySQL X DevAPI document store support for schemaless JSON document operations: `collection.find({age: {$gt: 21}}).execute()`. Implement CRUD operations matching MySQL Shell X DevAPI.
+
+69. [Bug Fix] PostgreSQL connection pool health check query `SELECT 1` keeps failed connections in pool when server restarts. Implement proper connection validation with configurable health check interval.
+
+70. [Bug Fix] MySQL multi-statement queries with `multipleStatements: true` return only first result set. Subsequent results are silently dropped. Return array of results for multi-statement queries.
+
+71. [Feature] Implement PostgreSQL logical replication client for consuming WAL changes: `client.startReplication('slot_name', callback)`. Should handle keepalive messages and standby status updates.
+
+72. [Bug Fix] PostgreSQL INTERVAL type returns incorrect values for intervals with mixed units like `1 year 2 months 3 days`. Parser only handles single-unit intervals. Implement full interval parsing.
+
+73. [Bug Fix] MySQL stored procedure with multiple OUT parameters only returns last parameter value. `CALL get_user_stats(?, @count, @sum)` loses @count. Fix OUT parameter retrieval.
+
+74. [Feature] Add PostgreSQL row-level security (RLS) context setting: `await client.setRole('app_user', { user_id: 123 })`. Should set session variables used by RLS policies.
+
+75. [Bug Fix] PostgreSQL `pg_typeof()` returns OID instead of type name for custom types. Type name resolution fails for non-builtin types. Implement proper type name lookup from pg_type catalog.
+
+76. [Bug Fix] MySQL INSERT IGNORE with duplicate key doesn't populate `insertId` when row exists. Should return existing row's ID or -1. Current behavior returns 0 which is ambiguous.
+
+77. [Feature] Implement PostgreSQL SCRAM-SHA-256 channel binding for enhanced authentication security. Current SCRAM implementation doesn't support `tls-server-end-point` channel binding.
+
+78. [Bug Fix] PostgreSQL connection SSL certificate verification fails when server cert uses IP SAN instead of DNS SAN. The hostname verifier doesn't check IP Subject Alternative Names. Fix SAN validation.
+
+79. [Bug Fix] MySQL connection charset mismatch when server default is utf8mb4 but connection uses utf8. Emoji characters corrupt silently. Auto-detect and warn on charset mismatch.
+
+80. [Feature] Add PostgreSQL async query cancellation: `const handle = client.query(longQuery); handle.cancel()`. Should send CancelRequest message to server and clean up client state.
+
+81. [Bug Fix] PostgreSQL NUMERIC with precision > 1000 causes buffer overflow in decimal parsing. Large precision NUMERIC columns crash the driver. Add bounds checking and BigInt fallback.
+
+82. [Bug Fix] MySQL `DATE` column with value '0000-00-00' throws error instead of returning null or invalid date. Add `invalidDates: 'null' | 'error' | 'raw'` option for handling MySQL zero dates.
+
+83. [Feature] Implement connection migration for PostgreSQL when primary fails: `pool.on('failover', newPrimary => ...)`. Should integrate with pg_stat_replication for automatic primary detection.
+
+84. [Bug Fix] PostgreSQL dollar-quoted strings with tag containing special characters break query parsing. `$$foo$bar$$content$$foo$bar$$` is incorrectly parsed. Fix dollar-quote tag detection regex.
+
+85. [Bug Fix] MySQL BIT(64) columns return incorrect values when high bit is set. Unsigned 64-bit handling is broken. Return as BigInt or Buffer depending on configuration.
+
+86. [Feature] Add PostgreSQL EXPLAIN ANALYZE result parsing: `await client.explain(query)` returns structured execution plan with timing, rows, and cost as objects instead of raw text.
+
+87. [Bug Fix] PostgreSQL composite type columns return raw string representation instead of parsed object. `ROW(1, 'test')::my_type` returns "(1,test)" string. Implement composite type parsing.
+
+88. [Bug Fix] MySQL SSL connection doesn't verify server certificate by default, enabling MITM attacks. Change default to `ssl: { rejectUnauthorized: true }` and document security implications.
+
+89. [Feature] Implement MySQL binlog replication client for CDC: `client.startBinlogStream('mysql-bin.000001', position)`. Should decode row events and handle GTID-based replication.
+
+90. [Bug Fix] PostgreSQL range types with infinity bounds return incorrect JavaScript values. `'[2023-01-01,)'::daterange` loses the infinity upper bound. Implement Infinity representation for range bounds.
+
+91. [Bug Fix] MySQL prepared statement with NULL parameter in WHERE clause generates `column = NULL` instead of `column IS NULL`. Queries return empty results. Fix NULL parameter handling in WHERE.
+
+92. [Feature] Add PostgreSQL table partitioning helpers: `await client.getPartitions('parent_table')` returns child partitions with bounds. Useful for partition management and maintenance.
+
+93. [Bug Fix] PostgreSQL hstore extension columns fail to parse when value contains `=>` string. The hstore parser uses naive splitting. Implement proper hstore grammar parsing.
+
+94. [Bug Fix] MySQL connection in transaction state isn't reset when returned to pool after error. Next query on connection unexpectedly inherits transaction. Add automatic ROLLBACK on pool return after error.
+
+95. [Feature] Implement PostgreSQL query plan caching with invalidation: `client.prepareNamed('get_user', query)` caches plan and auto-invalidates when table schema changes via event triggers.
+
+96. [Bug Fix] PostgreSQL point geometry type `(1.5, 2.5)` returns object with x/y as strings instead of numbers. Geometry type parsers don't convert coordinate strings to floats. Fix type coercion.
+
+97. [Bug Fix] MySQL GEOMETRY columns return raw WKB buffer instead of parsed GeoJSON. Add `geometry: 'wkb' | 'wkt' | 'geojson'` option for automatic geometry parsing.
+
+98. [Feature] Add connection tagging for PostgreSQL application_name per query: `client.query(sql, params, { applicationName: 'billing-job' })`. Useful for identifying queries in pg_stat_activity.
+
+99. [Bug Fix] PostgreSQL DOMAIN type constraints aren't validated client-side, causing unnecessary round-trips for invalid data. Implement optional client-side domain constraint checking.
+
+100. [Bug Fix] MySQL TIMESTAMP columns in different timezones return inconsistent values when connection timezone differs from server timezone. Implement explicit timezone handling with `timezone: 'UTC'` option.
