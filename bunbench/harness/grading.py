@@ -9,16 +9,15 @@ This module provides functions to:
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 from .constants import (
-    TestStatus,
+    BunBenchInstance,
+    EvaluationResult,
     ResolvedStatus,
     TestResult,
-    EvaluationResult,
-    BunBenchInstance,
+    TestStatus,
 )
-from .log_parser import parse_bun_test_output, ParsedTestOutput
+from .log_parser import ParsedTestOutput, parse_bun_test_output
 
 
 @dataclass
@@ -185,9 +184,9 @@ def determine_resolution_status(
 def get_eval_report(
     instance: BunBenchInstance,
     test_output: str,
-    model_patch: Optional[str] = None,
-    total_duration_ms: Optional[float] = None,
-    error: Optional[str] = None,
+    model_patch: str | None = None,
+    total_duration_ms: float | None = None,
+    error: str | None = None,
 ) -> EvaluationResult:
     """
     Generate a complete evaluation report for an instance.
@@ -314,12 +313,12 @@ def _normalize_test_name(name: str) -> str:
 def _find_partial_match(
     expected: str,
     actual_tests: list[TestResult]
-) -> Optional[TestResult]:
+) -> TestResult | None:
     """Find a partial match for a test name."""
     expected_normalized = _normalize_test_name(expected)
     expected_words = set(expected_normalized.split())
 
-    best_match: Optional[TestResult] = None
+    best_match: TestResult | None = None
     best_score = 0.0
 
     for test in actual_tests:

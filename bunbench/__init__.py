@@ -9,6 +9,8 @@ This package provides tools for:
 - Collecting and building benchmark datasets
 """
 
+from bunbench.harness import generate_report, run_evaluation
+
 __version__ = "0.1.0"
 __author__ = "Bun-Bench Team"
 
@@ -29,8 +31,6 @@ def get_version_info() -> dict:
     """Return detailed version information as a dictionary."""
     return VERSION_INFO.copy()
 
-
-from bunbench.harness import run_evaluation, generate_report
 
 __all__ = [
     "run_evaluation",

@@ -5,14 +5,14 @@ This module provides classes and functions for creating, validating,
 and managing benchmark instances for the Bun-Bench dataset.
 """
 
-import json
 import hashlib
+import json
+import logging
 import re
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
-import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -40,23 +40,23 @@ class BenchmarkInstance:
 
     # Code context (optional, for providing relevant code snippets)
     code_context: str = ""
-    relevant_files: List[str] = field(default_factory=list)
+    relevant_files: list[str] = field(default_factory=list)
 
     # Ground truth (for evaluation)
     gold_patch: str = ""
     test_patch: str = ""
-    pass_to_pass_tests: List[str] = field(default_factory=list)
-    fail_to_pass_tests: List[str] = field(default_factory=list)
+    pass_to_pass_tests: list[str] = field(default_factory=list)
+    fail_to_pass_tests: list[str] = field(default_factory=list)
 
     # Metadata
     difficulty: str = "medium"  # easy, medium, hard
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     source: str = ""  # e.g., "github_issue", "manual", "synthetic"
     source_url: str = ""
 
     # Additional context
-    hints: List[str] = field(default_factory=list)
+    hints: list[str] = field(default_factory=list)
     notes: str = ""
 
     def __post_init__(self):
@@ -68,12 +68,12 @@ class BenchmarkInstance:
         if not self.category:
             raise ValueError("category is required")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "BenchmarkInstance":
+    def from_dict(cls, data: dict[str, Any]) -> "BenchmarkInstance":
         """Create instance from dictionary."""
         return cls(**data)
 
@@ -110,9 +110,9 @@ EVALUATION_FIELDS = {"gold_patch", "fail_to_pass_tests"}
 
 
 def validate_instance(
-    instance: Dict[str, Any],
+    instance: dict[str, Any],
     strict: bool = False,
-) -> tuple[bool, List[str]]:
+) -> tuple[bool, list[str]]:
     """
     Validate a benchmark instance.
 
@@ -200,7 +200,7 @@ def _is_valid_patch(patch: str) -> bool:
 def create_instance(
     problem_statement: str,
     category: str,
-    instance_id: Optional[str] = None,
+    instance_id: str | None = None,
     **kwargs,
 ) -> BenchmarkInstance:
     """
@@ -258,9 +258,9 @@ class DatasetBuilder:
         """
         self.name = name
         self.version = version
-        self.instances: List[BenchmarkInstance] = []
-        self._instance_ids: Set[str] = set()
-        self.metadata: Dict[str, Any] = {
+        self.instances: list[BenchmarkInstance] = []
+        self._instance_ids: set[str] = set()
+        self.metadata: dict[str, Any] = {
             "name": name,
             "version": version,
             "created_at": datetime.utcnow().isoformat(),
@@ -285,7 +285,7 @@ class DatasetBuilder:
         self._instance_ids.add(instance.instance_id)
         return True
 
-    def add_from_dict(self, data: Dict[str, Any]) -> bool:
+    def add_from_dict(self, data: dict[str, Any]) -> bool:
         """
         Add an instance from a dictionary.
 
@@ -317,7 +317,7 @@ class DatasetBuilder:
         if not path.exists():
             raise FileNotFoundError(f"File not found: {path}")
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
 
         # Handle different formats
@@ -342,7 +342,7 @@ class DatasetBuilder:
         logger.info(f"Loaded {loaded} instances from {path}")
         return loaded
 
-    def validate_all(self, strict: bool = False) -> tuple[bool, Dict[str, List[str]]]:
+    def validate_all(self, strict: bool = False) -> tuple[bool, dict[str, list[str]]]:
         """
         Validate all instances in the dataset.
 
@@ -361,7 +361,7 @@ class DatasetBuilder:
 
         return len(all_issues) == 0, all_issues
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """
         Get dataset statistics.
 
@@ -439,11 +439,11 @@ class DatasetBuilder:
 
     def filter_by(
         self,
-        category: Optional[str] = None,
-        difficulty: Optional[str] = None,
-        tags: Optional[List[str]] = None,
-        has_gold_patch: Optional[bool] = None,
-    ) -> List[BenchmarkInstance]:
+        category: str | None = None,
+        difficulty: str | None = None,
+        tags: list[str] | None = None,
+        has_gold_patch: bool | None = None,
+    ) -> list[BenchmarkInstance]:
         """
         Filter instances by criteria.
 
@@ -482,7 +482,7 @@ class DatasetBuilder:
     def __iter__(self):
         return iter(self.instances)
 
-    def __getitem__(self, instance_id: str) -> Optional[BenchmarkInstance]:
+    def __getitem__(self, instance_id: str) -> BenchmarkInstance | None:
         for instance in self.instances:
             if instance.instance_id == instance_id:
                 return instance
@@ -547,12 +547,12 @@ def main():
         builder.load_from_file(args.input)
 
         stats = builder.get_statistics()
-        print(f"\nDataset Statistics:")
+        print("\nDataset Statistics:")
         print(f"  Total instances: {stats['total_instances']}")
-        print(f"\n  By category:")
+        print("\n  By category:")
         for cat, count in sorted(stats["by_category"].items()):
             print(f"    {cat}: {count}")
-        print(f"\n  By difficulty:")
+        print("\n  By difficulty:")
         for diff, count in sorted(stats["by_difficulty"].items()):
             print(f"    {diff}: {count}")
         print(f"\n  With gold patch: {stats['with_gold_patch']}")

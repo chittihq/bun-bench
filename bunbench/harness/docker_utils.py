@@ -6,15 +6,15 @@ evaluations, including container creation, file operations, command
 execution, and cleanup.
 """
 
-import subprocess
+import io
 import logging
+import subprocess
+import tarfile
 import time
 import uuid
-import tarfile
-import io
-from pathlib import Path
-from typing import Optional, List, Dict, Any, Tuple
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class ContainerInfo:
     name: str
     image: str
     status: str = "created"
-    exit_code: Optional[int] = None
+    exit_code: int | None = None
 
 
 @dataclass
@@ -49,11 +49,11 @@ class ExecutionResult:
 class ContainerConfig:
     """Configuration for creating a container."""
     image: str
-    name: Optional[str] = None
+    name: str | None = None
     memory_limit: str = DEFAULT_MEMORY_LIMIT
     cpu_limit: str = DEFAULT_CPU_LIMIT
-    environment: Dict[str, str] = field(default_factory=dict)
-    volumes: Dict[str, str] = field(default_factory=dict)
+    environment: dict[str, str] = field(default_factory=dict)
+    volumes: dict[str, str] = field(default_factory=dict)
     network_mode: str = "bridge"
     working_dir: str = "/home/bunuser/workspace/tests"
     user: str = "bunuser"
@@ -74,7 +74,7 @@ def generate_container_name(prefix: str = "bunbench") -> str:
     return f"{prefix}-{timestamp}-{unique_id}"
 
 
-def create_container(config: ContainerConfig) -> Tuple[Optional[ContainerInfo], Optional[str]]:
+def create_container(config: ContainerConfig) -> tuple[ContainerInfo | None, str | None]:
     """
     Create a Docker container from an image.
 
@@ -138,7 +138,7 @@ def create_container(config: ContainerConfig) -> Tuple[Optional[ContainerInfo], 
         return None, str(e)
 
 
-def start_container(container: ContainerInfo) -> Tuple[bool, Optional[str]]:
+def start_container(container: ContainerInfo) -> tuple[bool, str | None]:
     """
     Start a Docker container.
 
@@ -173,7 +173,7 @@ def start_container(container: ContainerInfo) -> Tuple[bool, Optional[str]]:
 def stop_container(
     container: ContainerInfo,
     timeout: int = 10
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Stop a Docker container.
 
@@ -216,7 +216,7 @@ def copy_to_container(
     container: ContainerInfo,
     source_path: Path,
     dest_path: str
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Copy files to a container.
 
@@ -256,7 +256,7 @@ def copy_from_container(
     container: ContainerInfo,
     source_path: str,
     dest_path: Path
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Copy files from a container.
 
@@ -297,7 +297,7 @@ def copy_content_to_container(
     content: str,
     dest_path: str,
     filename: str = "file.txt"
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Copy string content to a file in the container.
 
@@ -346,11 +346,11 @@ def copy_content_to_container(
 
 def execute_command(
     container: ContainerInfo,
-    command: List[str],
+    command: list[str],
     timeout: int = DEFAULT_TIMEOUT,
-    working_dir: Optional[str] = None,
-    environment: Optional[Dict[str, str]] = None,
-    user: Optional[str] = None
+    working_dir: str | None = None,
+    environment: dict[str, str] | None = None,
+    user: str | None = None
 ) -> ExecutionResult:
     """
     Execute a command in a container with timeout.
@@ -434,8 +434,8 @@ def execute_script(
     container: ContainerInfo,
     script: str,
     timeout: int = DEFAULT_TIMEOUT,
-    working_dir: Optional[str] = None,
-    environment: Optional[Dict[str, str]] = None
+    working_dir: str | None = None,
+    environment: dict[str, str] | None = None
 ) -> ExecutionResult:
     """
     Execute a shell script in a container.
@@ -481,9 +481,9 @@ def execute_script(
 
 def get_container_logs(
     container: ContainerInfo,
-    tail: Optional[int] = None,
-    since: Optional[str] = None
-) -> Tuple[str, str]:
+    tail: int | None = None,
+    since: str | None = None
+) -> tuple[str, str]:
     """
     Get logs from a container.
 
@@ -519,7 +519,7 @@ def get_container_logs(
         return "", str(e)
 
 
-def get_container_status(container: ContainerInfo) -> Optional[str]:
+def get_container_status(container: ContainerInfo) -> str | None:
     """
     Get the current status of a container.
 
@@ -552,7 +552,7 @@ def cleanup_container(
     container: ContainerInfo,
     force: bool = True,
     remove_volumes: bool = False
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Remove a container and optionally its volumes.
 
@@ -597,7 +597,7 @@ def cleanup_container(
 def cleanup_containers_by_prefix(
     prefix: str = "bunbench",
     force: bool = True
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Clean up all containers matching a name prefix.
 
@@ -654,7 +654,7 @@ def cleanup_containers_by_prefix(
 def list_containers(
     prefix: str = "bunbench",
     all_containers: bool = True
-) -> List[ContainerInfo]:
+) -> list[ContainerInfo]:
     """
     List containers matching a name prefix.
 
@@ -706,7 +706,7 @@ def list_containers(
 def wait_for_container(
     container: ContainerInfo,
     timeout: int = 60
-) -> Tuple[bool, Optional[int]]:
+) -> tuple[bool, int | None]:
     """
     Wait for a container to finish execution.
 

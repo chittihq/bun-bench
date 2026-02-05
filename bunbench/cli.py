@@ -198,8 +198,8 @@ For more information, visit: https://github.com/bun-bench/bun-bench
 
 def cmd_evaluate(args: argparse.Namespace) -> int:
     """Run evaluation command."""
-    from bunbench.harness.run_evaluation import run_evaluation, EvaluationConfig
-    from bunbench.harness.reporting import save_report, print_report_summary
+    from bunbench.harness.reporting import print_report_summary, save_report
+    from bunbench.harness.run_evaluation import EvaluationConfig, run_evaluation
 
     try:
         config = EvaluationConfig(
@@ -212,7 +212,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             verbose=args.verbose,
         )
 
-        print(f"Running evaluation...")
+        print("Running evaluation...")
         print(f"  Dataset: {args.dataset}")
         print(f"  Predictions: {args.predictions}")
         print(f"  Workers: {args.workers}")
@@ -238,7 +238,7 @@ def cmd_inference(args: argparse.Namespace) -> int:
     try:
         from bunbench.inference.run_api import run_inference
 
-        print(f"Running inference...")
+        print("Running inference...")
         print(f"  Dataset: {args.dataset}")
         print(f"  Provider: {args.provider}")
         print(f"  Model: {args.model or 'default'}")
@@ -300,7 +300,7 @@ def cmd_build_images(args: argparse.Namespace) -> int:
 
 def cmd_report(args: argparse.Namespace) -> int:
     """Run report command."""
-    from bunbench.harness.reporting import load_report, print_report_summary, compare_reports
+    from bunbench.harness.reporting import compare_reports, load_report, print_report_summary
 
     try:
         report = load_report(args.report_path)

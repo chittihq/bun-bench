@@ -8,7 +8,6 @@ building Docker images, and managing the benchmark suite.
 import argparse
 import logging
 import sys
-from typing import List, Optional
 
 # Configure logging
 logging.basicConfig(
@@ -27,16 +26,17 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     Returns:
         Exit code (0 for success, non-zero for failure).
     """
-    from bunbench.harness.run_evaluation import (
-        run_evaluation,
-        EvaluationConfig,
-    )
+    import os
+
     from bunbench.harness.reporting import (
         generate_report,
-        save_report,
         print_report_summary,
+        save_report,
     )
-    import os
+    from bunbench.harness.run_evaluation import (
+        EvaluationConfig,
+        run_evaluation,
+    )
 
     try:
         # Create configuration
@@ -94,9 +94,9 @@ def cmd_build_images(args: argparse.Namespace) -> int:
         Exit code (0 for success, non-zero for failure).
     """
     from bunbench.harness.run_evaluation import (
-        load_dataset,
-        get_docker_image_name,
         build_docker_image,
+        get_docker_image_name,
+        load_dataset,
     )
 
     try:
@@ -146,12 +146,13 @@ def cmd_report(args: argparse.Namespace) -> int:
     Returns:
         Exit code (0 for success, non-zero for failure).
     """
+    import json
+
     from bunbench.harness.reporting import (
+        compare_reports,
         load_report,
         print_report_summary,
-        compare_reports,
     )
-    import json
 
     try:
         if args.compare:
@@ -365,7 +366,7 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """Main entry point.
 
     Args:

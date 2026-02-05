@@ -6,13 +6,12 @@ evaluation harness, including base images, environment images with specific
 Bun versions, and instance images for individual evaluations.
 """
 
-import subprocess
-import logging
 import hashlib
 import json
-from pathlib import Path
-from typing import Optional
+import logging
+import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +27,8 @@ class BuildResult:
     """Result of a Docker build operation."""
     success: bool
     image_name: str
-    image_id: Optional[str] = None
-    error: Optional[str] = None
+    image_id: str | None = None
+    error: str | None = None
     cached: bool = False
 
 
@@ -90,7 +89,7 @@ def image_exists(image_name: str) -> bool:
         return False
 
 
-def get_image_id(image_name: str) -> Optional[str]:
+def get_image_id(image_name: str) -> str | None:
     """
     Get the ID of a Docker image.
 
@@ -212,7 +211,7 @@ def build_env_image(
     bun_version: str = "latest",
     force_rebuild: bool = False,
     no_cache: bool = False,
-    package_json_path: Optional[Path] = None
+    package_json_path: Path | None = None
 ) -> BuildResult:
     """
     Build an environment image with a specific Bun version.
@@ -260,8 +259,8 @@ def build_env_image(
         )
 
     # Create a build context directory
-    import tempfile
     import shutil
+    import tempfile
 
     with tempfile.TemporaryDirectory() as build_context:
         build_context_path = Path(build_context)
@@ -328,7 +327,7 @@ def build_instance_image(
     instance_id: str,
     bun_version: str = "latest",
     base_commit: str = "main",
-    test_files_dir: Optional[Path] = None,
+    test_files_dir: Path | None = None,
     force_rebuild: bool = False,
     no_cache: bool = False
 ) -> BuildResult:
@@ -381,8 +380,8 @@ def build_instance_image(
         )
 
     # Create a build context directory
-    import tempfile
     import shutil
+    import tempfile
 
     with tempfile.TemporaryDirectory() as build_context:
         build_context_path = Path(build_context)
@@ -451,7 +450,7 @@ def build_instance_image(
 
 
 def cleanup_images(
-    prefix: Optional[str] = None,
+    prefix: str | None = None,
     keep_base: bool = True,
     keep_env: bool = True
 ) -> dict:
@@ -514,9 +513,9 @@ def cleanup_images(
 
 def get_cache_key(
     image_type: str,
-    version: Optional[str] = None,
-    instance_id: Optional[str] = None,
-    base_commit: Optional[str] = None
+    version: str | None = None,
+    instance_id: str | None = None,
+    base_commit: str | None = None
 ) -> str:
     """
     Generate a cache key for an image build.

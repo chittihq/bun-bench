@@ -5,7 +5,7 @@ This module contains the system and user prompt templates used for code fixing t
 along with utilities for formatting prompts for different model styles.
 """
 
-from typing import Dict, Any, Optional
+from typing import Any
 
 # System prompt for code fixing tasks
 SYSTEM_PROMPT = """You are an expert software engineer specializing in the Bun JavaScript runtime.
@@ -88,10 +88,10 @@ EXAMPLE_PATCH = '''```diff
 
 def format_prompt(
     problem_statement: str,
-    code_context: Optional[str] = None,
+    code_context: str | None = None,
     style: str = "default",
-    additional_instructions: Optional[str] = None,
-) -> Dict[str, str]:
+    additional_instructions: str | None = None,
+) -> dict[str, str]:
     """
     Format prompts for different model styles and configurations.
 
@@ -140,7 +140,7 @@ def format_prompt(
 
 def format_for_openai(
     problem_statement: str,
-    code_context: Optional[str] = None,
+    code_context: str | None = None,
     style: str = "default",
 ) -> list:
     """
@@ -167,9 +167,9 @@ def format_for_openai(
 
 def format_for_anthropic(
     problem_statement: str,
-    code_context: Optional[str] = None,
+    code_context: str | None = None,
     style: str = "default",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Format prompts for Anthropic API format.
 

@@ -9,7 +9,7 @@ This module defines:
 """
 
 from enum import Enum
-from typing import TypedDict, NotRequired
+from typing import NotRequired, TypedDict
 
 
 class TestStatus(Enum):

@@ -7,9 +7,8 @@ and extract test results, including test names, pass/fail status, and error deta
 
 import re
 from dataclasses import dataclass, field
-from typing import Optional
 
-from .constants import TestStatus, TestResult
+from .constants import TestResult, TestStatus
 
 
 @dataclass

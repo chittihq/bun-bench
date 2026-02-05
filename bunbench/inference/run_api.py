@@ -5,23 +5,23 @@ This module provides clients for running inference with OpenAI and Anthropic API
 including retry logic, token counting, cost tracking, and resumable execution.
 """
 
+import argparse
 import json
+import logging
 import os
 import time
-import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Iterator
-import argparse
+from typing import Any
 
-from bunbench.inference.prompts import format_for_openai, format_for_anthropic
+from bunbench.inference.prompts import format_for_anthropic, format_for_openai
 from bunbench.inference.utils import (
-    extract_patch,
-    repair_patch,
     count_tokens,
     estimate_cost,
+    extract_patch,
+    repair_patch,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,17 +34,17 @@ class InferenceResult:
     instance_id: str
     model: str
     raw_response: str
-    extracted_patch: Optional[str]
+    extracted_patch: str | None
     input_tokens: int
     output_tokens: int
     cost_usd: float
     latency_seconds: float
     timestamp: str
     success: bool
-    error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return asdict(self)
 
@@ -118,7 +118,7 @@ class APIClient(ABC):
         user_prompt: str,
         temperature: float = 0.0,
         max_tokens: int = 4096,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Make an API call.
 
@@ -139,7 +139,7 @@ class APIClient(ABC):
         user_prompt: str,
         temperature: float = 0.0,
         max_tokens: int = 4096,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Make an API call with retry logic.
 
@@ -186,8 +186,8 @@ class OpenAIClient(APIClient):
     def __init__(
         self,
         model: str = "gpt-4-turbo",
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
         **kwargs,
     ):
         """
@@ -226,7 +226,7 @@ class OpenAIClient(APIClient):
         user_prompt: str,
         temperature: float = 0.0,
         max_tokens: int = 4096,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Make an OpenAI API call."""
         messages = []
         if system_prompt:
@@ -254,7 +254,7 @@ class AnthropicClient(APIClient):
     def __init__(
         self,
         model: str = "claude-3-5-sonnet-20261022",
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         **kwargs,
     ):
         """
@@ -290,7 +290,7 @@ class AnthropicClient(APIClient):
         user_prompt: str,
         temperature: float = 0.0,
         max_tokens: int = 4096,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Make an Anthropic API call."""
         response = self.client.messages.create(
             model=self.model,
@@ -307,7 +307,7 @@ class AnthropicClient(APIClient):
         }
 
 
-def load_dataset(path: str) -> List[Dict[str, Any]]:
+def load_dataset(path: str) -> list[dict[str, Any]]:
     """
     Load benchmark dataset from JSON file.
 
@@ -326,7 +326,7 @@ def load_dataset(path: str) -> List[Dict[str, Any]]:
     if not path.exists():
         raise FileNotFoundError(f"Dataset file not found: {path}")
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
     # Handle both list format and dict with "instances" key
@@ -336,7 +336,7 @@ def load_dataset(path: str) -> List[Dict[str, Any]]:
         return data["instances"]
     else:
         raise ValueError(
-            f"Invalid dataset format. Expected list or dict with 'instances' key."
+            "Invalid dataset format. Expected list or dict with 'instances' key."
         )
 
 
@@ -356,7 +356,7 @@ def load_processed_ids(output_path: str) -> set:
     if not output_path.exists():
         return processed
 
-    with open(output_path, "r", encoding="utf-8") as f:
+    with open(output_path, encoding="utf-8") as f:
         for line in f:
             if line.strip():
                 try:
@@ -389,13 +389,13 @@ def run_inference(
     dataset_path: str,
     output_path: str,
     provider: str = "openai",
-    model: Optional[str] = None,
+    model: str | None = None,
     temperature: float = 0.0,
     max_tokens: int = 4096,
     prompt_style: str = "default",
     resume: bool = True,
-    max_instances: Optional[int] = None,
-    instance_ids: Optional[List[str]] = None,
+    max_instances: int | None = None,
+    instance_ids: list[str] | None = None,
     repair_patches: bool = True,
     verbose: bool = False,
 ) -> InferenceStats:

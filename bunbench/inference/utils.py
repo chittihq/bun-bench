@@ -5,14 +5,13 @@ This module provides utilities for extracting patches from model responses,
 repairing common patch issues, and counting tokens.
 """
 
-import re
-from typing import Optional, List, Tuple
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
 
-def extract_patch(response: str) -> Optional[str]:
+def extract_patch(response: str) -> str | None:
     """
     Extract a unified diff patch from a model response.
 
@@ -91,7 +90,7 @@ def _looks_like_diff(text: str) -> bool:
     return False
 
 
-def _extract_raw_diff(response: str) -> Optional[str]:
+def _extract_raw_diff(response: str) -> str | None:
     """
     Extract raw diff content from response without code blocks.
 
@@ -229,10 +228,10 @@ def repair_patch(patch: str) -> str:
         elif i > 0 and repaired_lines:
             prev_line = repaired_lines[-1]
             # If previous was a hunk header and this line doesn't start with diff marker
-            if prev_line.startswith('@@') and line and not line[0] in ['+', '-', ' ', '@', '\\']:
+            if prev_line.startswith('@@') and line and line[0] not in ['+', '-', ' ', '@', '\\']:
                 # Likely a context line missing its space
                 line = ' ' + line
-                logger.debug(f"Added missing space to context line")
+                logger.debug("Added missing space to context line")
 
         repaired_lines.append(line)
         i += 1
@@ -245,7 +244,7 @@ def repair_patch(patch: str) -> str:
     return result
 
 
-def validate_patch(patch: str) -> Tuple[bool, List[str]]:
+def validate_patch(patch: str) -> tuple[bool, list[str]]:
     """
     Validate a patch for common issues.
 

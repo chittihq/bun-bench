@@ -13,10 +13,9 @@ import subprocess
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 try:
     from tqdm import tqdm
@@ -67,7 +66,7 @@ class EvaluationConfig:
     docker_image_prefix: str = "bunbench"
     force_rebuild: bool = False
     verbose: bool = False
-    instance_ids: Optional[List[str]] = None
+    instance_ids: list[str] | None = None
 
 
 @dataclass
@@ -87,7 +86,7 @@ class TestResult:
     skipped: int = 0
     total: int = 0
     output: str = ""
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
@@ -106,19 +105,19 @@ class EvaluationResult:
     instance_id: str
     status: EvaluationStatus = EvaluationStatus.PENDING
     patch_applied: bool = False
-    test_result: Optional[TestResult] = None
+    test_result: TestResult | None = None
     duration: float = 0.0
-    error_message: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    error_message: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert result to dictionary for JSON serialization."""
         result = asdict(self)
         result["status"] = self.status.value
         return result
 
 
-def load_dataset(dataset_path: str) -> List[Dict[str, Any]]:
+def load_dataset(dataset_path: str) -> list[dict[str, Any]]:
     """Load dataset from JSON file or HuggingFace.
 
     Args:
@@ -135,7 +134,7 @@ def load_dataset(dataset_path: str) -> List[Dict[str, Any]]:
 
     # Check if it's a local JSON file
     if os.path.exists(dataset_path):
-        with open(dataset_path, "r", encoding="utf-8") as f:
+        with open(dataset_path, encoding="utf-8") as f:
             data = json.load(f)
 
         # Handle both list format and dict with "instances" key
@@ -182,7 +181,7 @@ def load_dataset(dataset_path: str) -> List[Dict[str, Any]]:
         )
 
 
-def load_predictions(predictions_path: str) -> Dict[str, str]:
+def load_predictions(predictions_path: str) -> dict[str, str]:
     """Load predictions from JSON file.
 
     Args:
@@ -200,7 +199,7 @@ def load_predictions(predictions_path: str) -> Dict[str, str]:
     if not os.path.exists(predictions_path):
         raise FileNotFoundError(f"Predictions file not found: {predictions_path}")
 
-    with open(predictions_path, "r", encoding="utf-8") as f:
+    with open(predictions_path, encoding="utf-8") as f:
         predictions = json.load(f)
 
     if not isinstance(predictions, dict):
@@ -210,7 +209,7 @@ def load_predictions(predictions_path: str) -> Dict[str, str]:
     return predictions
 
 
-def get_docker_image_name(instance: Dict[str, Any], prefix: str) -> str:
+def get_docker_image_name(instance: dict[str, Any], prefix: str) -> str:
     """Generate Docker image name for an instance.
 
     Args:
@@ -227,7 +226,7 @@ def get_docker_image_name(instance: Dict[str, Any], prefix: str) -> str:
 
 
 def build_docker_image(
-    instance: Dict[str, Any],
+    instance: dict[str, Any],
     image_name: str,
     force_rebuild: bool = False
 ) -> bool:
@@ -437,7 +436,7 @@ def parse_test_output(output: str) -> TestResult:
     return result
 
 
-def grade_result(test_result: TestResult, instance: Dict[str, Any]) -> EvaluationStatus:
+def grade_result(test_result: TestResult, instance: dict[str, Any]) -> EvaluationStatus:
     """Grade the evaluation result.
 
     Args:
@@ -463,7 +462,7 @@ def grade_result(test_result: TestResult, instance: Dict[str, Any]) -> Evaluatio
 
 
 def run_single_evaluation(
-    instance: Dict[str, Any],
+    instance: dict[str, Any],
     patch: str,
     config: EvaluationConfig
 ) -> EvaluationResult:
@@ -579,7 +578,7 @@ def run_single_evaluation(
     return result
 
 
-def run_evaluation(config: EvaluationConfig) -> List[EvaluationResult]:
+def run_evaluation(config: EvaluationConfig) -> list[EvaluationResult]:
     """Run evaluation for all instances.
 
     Args:
@@ -606,7 +605,7 @@ def run_evaluation(config: EvaluationConfig) -> List[EvaluationResult]:
     # Create output directory
     os.makedirs(config.output_dir, exist_ok=True)
 
-    results: List[EvaluationResult] = []
+    results: list[EvaluationResult] = []
 
     # Run evaluations in parallel
     with ThreadPoolExecutor(max_workers=config.max_workers) as executor:

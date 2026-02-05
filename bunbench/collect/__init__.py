@@ -8,8 +8,8 @@ including instance creation, validation, and dataset building.
 from bunbench.collect.build_dataset import (
     BenchmarkInstance,
     DatasetBuilder,
-    validate_instance,
     create_instance,
+    validate_instance,
 )
 
 __all__ = [

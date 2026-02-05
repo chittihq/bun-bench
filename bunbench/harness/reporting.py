@@ -7,9 +7,9 @@ aggregating statistics, and saving results.
 
 import json
 import os
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from bunbench.harness.run_evaluation import EvaluationResult, EvaluationStatus
 
@@ -38,8 +38,8 @@ class InstanceReport:
     tests_skipped: int = 0
     tests_total: int = 0
     duration: float = 0.0
-    error_message: Optional[str] = None
-    test_output: Optional[str] = None
+    error_message: str | None = None
+    test_output: str | None = None
 
     @classmethod
     def from_evaluation_result(
@@ -117,10 +117,10 @@ class ReportSummary:
     avg_duration: float = 0.0
     total_duration: float = 0.0
     timestamp: str = ""
-    config: Dict[str, Any] = field(default_factory=dict)
-    instances: List[InstanceReport] = field(default_factory=list)
+    config: dict[str, Any] = field(default_factory=dict)
+    instances: list[InstanceReport] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert report to dictionary for JSON serialization."""
         return {
             "summary": {
@@ -142,8 +142,8 @@ class ReportSummary:
 
 
 def generate_report(
-    results: List[EvaluationResult],
-    config: Optional[Dict[str, Any]] = None,
+    results: list[EvaluationResult],
+    config: dict[str, Any] | None = None,
     include_test_output: bool = True,
     max_output_length: int = 10000,
 ) -> ReportSummary:
@@ -247,7 +247,7 @@ def load_report(report_path: str) -> ReportSummary:
     if not os.path.exists(report_path):
         raise FileNotFoundError(f"Report file not found: {report_path}")
 
-    with open(report_path, "r", encoding="utf-8") as f:
+    with open(report_path, encoding="utf-8") as f:
         data = json.load(f)
 
     # Parse the report structure
@@ -332,7 +332,7 @@ def compare_reports(
     report2: ReportSummary,
     label1: str = "Report 1",
     label2: str = "Report 2",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Compare two evaluation reports.
 
     Args:
