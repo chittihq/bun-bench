@@ -209,6 +209,7 @@ class OpenAIClient(APIClient):
             )
 
         self.base_url = base_url
+        logger.info(f"Initialized OpenAI client with model='{model}', base_url='{base_url}'")
 
         # Lazy import to avoid dependency issues
         try:
@@ -390,6 +391,8 @@ def run_inference(
     output_path: str,
     provider: str = "openai",
     model: Optional[str] = None,
+    base_url: Optional[str] = None,
+    api_key: Optional[str] = None,
     temperature: float = 0.0,
     max_tokens: int = 4096,
     prompt_style: str = "default",
@@ -407,6 +410,8 @@ def run_inference(
         output_path: Path to JSONL output file.
         provider: API provider ('openai' or 'anthropic').
         model: Model name (uses provider default if not specified).
+        base_url: Optional custom base URL for OpenAI-compatible APIs.
+        api_key: Optional API key (falls back to environment variables).
         temperature: Sampling temperature.
         max_tokens: Maximum tokens to generate.
         prompt_style: Prompt formatting style.
@@ -429,10 +434,14 @@ def run_inference(
     # Initialize client
     if provider.lower() == "openai":
         default_model = "gpt-4-turbo"
-        client = OpenAIClient(model=model or default_model)
+        client = OpenAIClient(
+            model=model or default_model,
+            base_url=base_url,
+            api_key=api_key
+        )
     elif provider.lower() == "anthropic":
         default_model = "claude-3-5-sonnet-20261022"
-        client = AnthropicClient(model=model or default_model)
+        client = AnthropicClient(model=model or default_model, api_key=api_key)
     else:
         raise ValueError(f"Unknown provider: {provider}. Use 'openai' or 'anthropic'.")
 
@@ -618,6 +627,16 @@ Examples:
         help="Model name (uses provider default if not specified)",
     )
     parser.add_argument(
+        "--base-url",
+        "-b",
+        help="Custom base URL for OpenAI-compatible API (e.g., OpenRouter)",
+    )
+    parser.add_argument(
+        "--api-key",
+        "-k",
+        help="API key (falls back to OPENAI_API_KEY or ANTHROPIC_API_KEY env vars)",
+    )
+    parser.add_argument(
         "--temperature",
         "-t",
         type=float,
@@ -671,6 +690,8 @@ Examples:
             output_path=args.output,
             provider=args.provider,
             model=args.model,
+            base_url=args.base_url,
+            api_key=args.api_key,
             temperature=args.temperature,
             max_tokens=args.max_tokens,
             prompt_style=args.prompt_style,

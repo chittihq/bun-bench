@@ -1,0 +1,17 @@
+# vLLM Requirements for Bun-Bench
+# Install with: pip install -r vllm_requirements.txt
+
+# Core vLLM
+vllm>=0.6.0
+
+# Dependencies
+torch>=2.3.0
+transformers>=4.40.0
+accelerate>=0.25.0
+
+# Optional: For better performance
+xformers>=0.0.24
+
+# For monitoring
+psutil>=5.9.0
+gpustat>=1.1.1
