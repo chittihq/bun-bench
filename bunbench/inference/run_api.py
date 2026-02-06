@@ -586,55 +586,44 @@ def main():
     parser = argparse.ArgumentParser(
         description="Run LLM inference on Bun-Bench dataset",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Run with OpenAI GPT-4
-  python -m bunbench.inference.run_api --dataset data/bun-bench.json --output results/gpt4.jsonl --provider openai --model gpt-4-turbo
-
-  # Run with Anthropic Claude
-  python -m bunbench.inference.run_api --dataset data/bun-bench.json --output results/claude.jsonl --provider anthropic --model claude-3-5-sonnet-20261022
-
-  # Process specific instances
-  python -m bunbench.inference.run_api --dataset data/bun-bench.json --output results/test.jsonl --instances BUN-001 BUN-002
-
-  # Resume interrupted run
-  python -m bunbench.inference.run_api --dataset data/bun-bench.json --output results/gpt4.jsonl --resume
-        """,
     )
 
     parser.add_argument(
         "--dataset",
         "-d",
-        required=True,
-        help="Path to JSON dataset file",
+        default=os.environ.get("BUNBENCH_DATASET", "dataset/tasks.json"),
+        help="Path to JSON dataset file (default: dataset/tasks.json)",
     )
     parser.add_argument(
         "--output",
         "-o",
-        required=True,
-        help="Path to JSONL output file",
+        default=os.environ.get("BUNBENCH_OUTPUT", "results/inference.jsonl"),
+        help="Path to JSONL output file (default: results/inference.jsonl)",
     )
     parser.add_argument(
         "--provider",
         "-p",
+        default=os.environ.get("BUNBENCH_PROVIDER", "openai"),
         choices=["openai", "anthropic"],
-        default="openai",
         help="API provider (default: openai)",
     )
     parser.add_argument(
         "--model",
         "-m",
-        help="Model name (uses provider default if not specified)",
+        default=os.environ.get("BUNBENCH_MODEL", "gpt-4-turbo"),
+        help="Model name (default: from env or gpt-4-turbo)",
     )
     parser.add_argument(
         "--base-url",
         "-b",
-        help="Custom base URL for OpenAI-compatible API (e.g., OpenRouter)",
+        default=os.environ.get("BUNBENCH_BASE_URL"),
+        help="Custom base URL (default: from env)",
     )
     parser.add_argument(
         "--api-key",
         "-k",
-        help="API key (falls back to OPENAI_API_KEY or ANTHROPIC_API_KEY env vars)",
+        default=os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY"),
+        help="API key (default: from env)",
     )
     parser.add_argument(
         "--temperature",
