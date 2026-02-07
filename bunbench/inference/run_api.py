@@ -16,6 +16,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Iterator
 import argparse
 
+# Load .env file if it exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from bunbench.inference.prompts import format_for_openai, format_for_anthropic
 from bunbench.inference.utils import (
     extract_patch,
@@ -453,7 +460,7 @@ def run_inference(
     # Filter by instance IDs if specified
     if instance_ids:
         instance_set = set(instance_ids)
-        instances = [i for i in instances if i.get("instance_id") in instance_set]
+        instances = [i for i in instances if (i.get("instance_id") or i.get("task_id")) in instance_set]
         logger.info(f"Filtered to {len(instances)} specified instances")
 
     # Load already processed for resumption
@@ -467,7 +474,8 @@ def run_inference(
     # Process instances
     processed_count = 0
     for instance in instances:
-        instance_id = instance.get("instance_id", "unknown")
+        # Support both task_id and instance_id fields
+        instance_id = instance.get("instance_id") or instance.get("task_id", "unknown")
 
         # Skip if already processed
         if instance_id in processed_ids:
