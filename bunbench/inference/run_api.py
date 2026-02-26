@@ -480,12 +480,13 @@ def run_inference(
     Returns:
         InferenceStats with run statistics.
     """
-    # Setup logging
-    log_level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    # Setup logging (only if not already configured)
+    if not logging.getLogger().handlers:
+        log_level = logging.DEBUG if verbose else logging.INFO
+        logging.basicConfig(
+            level=log_level,
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        )
 
     # Initialize client
     if provider.lower() == "openai" or provider.lower() == "openrouter":
