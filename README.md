@@ -65,30 +65,41 @@ pip install -e .
 pip install bun-bench
 ```
 
-### 2. Load the dataset
+### 2. Configure Environment
 
-```python
-from bun_bench import BunBench
-
-# Load all tasks
-benchmark = BunBench()
-
-# Get a specific task
-task = benchmark.get_task(1)
-print(task.description)
-```
-
-### 3. Run evaluation on a model
+Edit `.env` file to set runtime and test configuration:
 
 ```bash
-bun-bench evaluate --model gpt-4 --output results/
+# Runtime Configuration
+BENCH_RUNTIME=bun
+BENCH_TEST_RUNNER="bun test"
+BENCH_LANGUAGE=typescript
+
+# Dataset
+BENCH_DATASET=dataset/tasks_from_dirs.json
+
+# Model Configuration
+BENCH_PROVIDER=openrouter
+BENCH_MODEL=minimax/minimax-m2.5
 ```
 
-### 4. View results
+### 3. Run Inference
 
 ```bash
-bun-bench report results/
+python3 -m bunbench.inference.run_api --instances task-001 task-002
 ```
+
+### 4. Run Evaluation
+
+```bash
+python3 -m bunbench evaluate --local --instance-ids task-001
+```
+
+### 5. View Results
+
+Reports are saved in each task folder:
+- `dataset/tasks/<task-id>/evaluation_report.json`
+- `dataset/tasks/<task-id>/predictions.jsonl`
 
 ---
 
@@ -129,28 +140,39 @@ Bun-Bench contains **100 tasks** organized across multiple categories:
 ### Basic Evaluation
 
 ```bash
-# Evaluate a model on all tasks
-bun-bench evaluate --model claude-3-opus --output results/claude-opus/
+# Run inference on specific tasks
+python3 -m bunbench.inference.run_api --instances task-001 task-002
 
-# Evaluate on specific tasks
-bun-bench evaluate --model gpt-4 --tasks 1,2,3,4,5 --output results/gpt4-subset/
+# Evaluate predictions (local mode)
+python3 -m bunbench evaluate --local --instance-ids task-001
 
-# Evaluate on a category
-bun-bench evaluate --model claude-3-opus --category postgresql --output results/
+# Evaluate all predictions
+python3 -m bunbench evaluate --local
 ```
 
 ### Evaluation Options
 
 ```bash
-bun-bench evaluate \
-  --model <model-name> \           # Required: Model to evaluate
-  --output <directory> \           # Required: Output directory for results
-  --tasks <task-ids> \             # Optional: Comma-separated task IDs
-  --category <category> \          # Optional: Filter by category
-  --max-iterations <n> \           # Optional: Max attempts per task (default: 3)
-  --timeout <seconds> \            # Optional: Timeout per task (default: 300)
-  --parallel <n>                   # Optional: Parallel task execution
+python3 -m bunbench evaluate \
+  --dataset <path> \              # Dataset JSON file
+  --predictions <path> \           # Predictions JSONL file
+  --output <directory> \           # Output directory
+  --local \                        # Run locally (no Docker)
+  --instance-ids <ids> \           # Specific tasks to evaluate
+  --force-rebuild \                # Re-run even if report exists
+  --workers <n> \                  # Parallel workers (default: 4)
+  --timeout <seconds> \            # Timeout per task (default: 300)
+  --verbose                       # Verbose output
 ```
+
+### Commands Summary
+
+| Command | Description |
+|---------|-------------|
+| `python3 -m bunbench.inference.run_api` | Run inference |
+| `python3 -m bunbench evaluate` | Run evaluation |
+| `python3 -m bunbench report` | View/compare reports |
+| `python3 -m bunbench build-images` | Build Docker images |
 
 ### Programmatic Evaluation
 
@@ -168,6 +190,83 @@ results = evaluator.evaluate_all(benchmark.tasks)
 
 # Generate report
 results.to_report("results/report.json")
+```
+
+---
+
+## Retry Flow (Multiple Attempts)
+
+Bun-Bench supports up to 3 attempts per task with error feedback:
+
+### How It Works
+
+```
+Attempt 1:
+├── Input: Bug code + README
+├── Run Inference → attempt-1.json
+├── Run Evaluation
+└── If PASS → Save report, STOP
+
+Attempt 2 (if failed):
+├── Input: Bug code + README + Attempt 1 Error
+├── Run Inference → attempt-2.json
+├── Run Evaluation
+└── If PASS → Save report, STOP
+
+Attempt 3 (if failed):
+├── Input: Bug code + README + Attempt 1 & 2 Errors
+├── Run Inference → attempt-3.json
+└── Run Evaluation → Save report if PASS
+```
+
+### Task File Structure
+
+```
+task-001/
+├── README.md              # Problem description
+├── src/                  # Buggy source code
+├── test/                 # Test files
+├── solution/             # Fixed code
+├── attempt-1.json        # 1st inference response
+├── attempt-2.json        # 2nd inference (if needed)
+├── attempt-3.json        # 3rd inference (if needed)
+├── inference-response.json  # Latest response
+└── evaluation_report.json  # Final result (only if passed)
+```
+
+### Skip Logic
+
+| Condition | Action |
+|-----------|--------|
+| `attempt-N.json` exists | Skip inference, use existing |
+| `evaluation_report.json` exists | Skip evaluation |
+| `--force-rebuild` flag | Re-run everything |
+
+---
+
+## Configuration
+
+### Environment Variables
+
+All configuration is done via environment variables (in `.env` file):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BENCH_RUNTIME` | `bun` | Runtime (bun, node, deno) |
+| `BENCH_TEST_RUNNER` | `bun test` | Test command |
+| `BENCH_LANGUAGE` | `typescript` | Language (js, ts) |
+| `BENCH_DATASET` | `dataset/tasks_from_dirs.json` | Dataset path |
+| `BENCH_OUTPUT` | `predictions.jsonl` | Output file |
+| `BENCH_TIMEOUT` | `300` | Timeout in seconds |
+| `BENCH_PROVIDER` | `openai` | API provider |
+| `BENCH_MODEL` | `gpt-4-turbo` | Model name |
+
+### Example: Node.js Benchmark
+
+```bash
+BENCH_RUNTIME=node
+BENCH_TEST_RUNNER="npm test"
+BENCH_LANGUAGE=javascript
 ```
 
 ---
