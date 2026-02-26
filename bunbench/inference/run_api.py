@@ -660,32 +660,32 @@ def main():
     parser.add_argument(
         "--dataset",
         "-d",
-        default=os.environ.get("BUNBENCH_DATASET", "dataset/tasks_from_dirs.json"),
+        default=os.environ.get("BENCH_DATASET", "dataset/tasks_from_dirs.json"),
         help="Path to JSON dataset file (default: dataset/tasks.json)",
     )
     parser.add_argument(
         "--output",
         "-o",
-        default=os.environ.get("BUNBENCH_OUTPUT", "predictions.jsonl"),
+        default=os.environ.get("BENCH_OUTPUT", "predictions.jsonl"),
         help="Path to JSONL output file (default: results/inference.jsonl)",
     )
     parser.add_argument(
         "--provider",
         "-p",
-        default=os.environ.get("BUNBENCH_PROVIDER", "openai"),
+        default=os.environ.get("BENCH_PROVIDER", "openai"),
         choices=["openai", "anthropic", "openrouter"],
         help="API provider (default: openai, or openrouter)",
     )
     parser.add_argument(
         "--model",
         "-m",
-        default=os.environ.get("BUNBENCH_MODEL", "gpt-4-turbo"),
+        default=os.environ.get("BENCH_MODEL", "gpt-4-turbo"),
         help="Model name (default: from env or gpt-4-turbo)",
     )
     parser.add_argument(
         "--base-url",
         "-b",
-        default=os.environ.get("BUNBENCH_BASE_URL"),
+        default=os.environ.get("BENCH_BASE_URL"),
         help="Custom base URL (default: from env)",
     )
     parser.add_argument(

@@ -61,17 +61,23 @@ class EvaluationConfig:
         verbose: Enable verbose output.
         instance_ids: Optional list of specific instance IDs to evaluate.
         local_mode: Run tests locally without Docker.
+        runtime: Runtime name (bun, node, deno, etc.) - from BENCH_RUNTIME env
+        test_runner: Test command to run - from BENCH_TEST_RUNNER env
+        language: Programming language - from BENCH_LANGUAGE env
     """
     dataset_path: str
     predictions_path: str
-    output_dir: str = "./results"
+    output_dir: str = os.getenv("BENCH_OUTPUT_DIR", "./results")
     max_workers: int = 4
-    timeout: int = 300
+    timeout: int = int(os.getenv("BENCH_TIMEOUT", "300"))
     docker_image_prefix: str = "bunbench"
     force_rebuild: bool = False
     verbose: bool = False
     instance_ids: Optional[List[str]] = None
     local_mode: bool = False
+    runtime: str = os.getenv("BENCH_RUNTIME", "bun")
+    test_runner: str = os.getenv("BENCH_TEST_RUNNER", "bun test")
+    language: str = os.getenv("BENCH_LANGUAGE", "typescript")
 
 
 @dataclass
@@ -663,7 +669,7 @@ def run_local_evaluation(
             )
 
             # Run tests
-            test_result = run_local_tests(workdir, config.timeout)
+            test_result = run_local_tests(workdir, config.timeout, config.test_runner)
             result.test_result = test_result
 
             # Grade result
@@ -678,21 +684,25 @@ def run_local_evaluation(
     return result
 
 
-def run_local_tests(workdir: Path, timeout: int) -> TestResult:
-    """Run bun tests locally.
+def run_local_tests(workdir: Path, timeout: int, test_runner: str = "bun test") -> TestResult:
+    """Run tests locally.
 
     Args:
         workdir: Working directory.
         timeout: Timeout in seconds.
+        test_runner: Test command to run (e.g., "bun test", "npm test").
 
     Returns:
         TestResult with test outcomes.
     """
     logger.debug(f"Running tests locally in {workdir}")
 
+    # Split test_runner into command and args
+    cmd = test_runner.split()
+
     try:
         result = subprocess.run(
-            ["bun", "test", "--json"],
+            cmd + ["--json"],
             cwd=workdir,
             capture_output=True,
             text=True,
