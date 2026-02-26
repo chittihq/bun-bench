@@ -36,10 +36,13 @@ def extract_patch(response: str) -> Optional[str]:
     matches = re.findall(diff_block_pattern, response, re.DOTALL | re.IGNORECASE)
 
     if matches:
-        # Filter to only include actual diff content
+        # Filter to only include actual diff content and join all patches
+        valid_patches = []
         for match in matches:
             if _looks_like_diff(match):
-                return match.strip()
+                valid_patches.append(match.strip())
+        if valid_patches:
+            return "\n".join(valid_patches)
 
     # Try <patch>...</patch> tags
     patch_tag_pattern = r'<patch>\s*(.*?)\s*</patch>'
@@ -213,7 +216,7 @@ def repair_patch(patch: str) -> str:
                     line = f'+++ b/{filepath}{rest}'
                     logger.debug(f"Fixed +++ line: {line}")
 
-        # Fix hunk headers with incorrect spacing
+        # Fix hunk headers with incorrect spacing or counts
         elif re.match(r'^@@.*@@', line):
             # Normalize hunk header format
             match = re.match(r'^@@\s*-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s*@@(.*)$', line)
@@ -224,15 +227,24 @@ def repair_patch(patch: str) -> str:
                 new_count = match.group(4) or '1'
                 context = match.group(5)
                 line = f'@@ -{old_start},{old_count} +{new_start},{new_count} @@{context}'
+            else:
+                # Try to fix malformed hunk headers that might be missing the space or have other issues
+                header_match = re.search(r'@@\s*-(\d+).*\+(\d+).*@@', line)
+                if header_match:
+                    line = f'@@ -{header_match.group(1)},1 +{header_match.group(2)},1 @@'
 
         # Fix context lines that lost their leading space
         elif i > 0 and repaired_lines:
             prev_line = repaired_lines[-1]
-            # If previous was a hunk header and this line doesn't start with diff marker
-            if prev_line.startswith('@@') and line and not line[0] in ['+', '-', ' ', '@', '\\']:
+            # If previous was a hunk header or part of a hunk and this line doesn't start with diff marker
+            if (prev_line.startswith('@@') or prev_line.startswith(' ') or prev_line.startswith('+') or prev_line.startswith('-')) \
+               and line and not line[0] in ['+', '-', ' ', '@', '\\']:
                 # Likely a context line missing its space
-                line = ' ' + line
-                logger.debug(f"Added missing space to context line")
+                # But only if it's not a new file header or something
+                if not re.match(r'^(diff|---|\+\+\+|index)', line):
+                    line = ' ' + line
+                    logger.debug(f"Added missing space to context line")
+
 
         repaired_lines.append(line)
         i += 1
@@ -355,7 +367,10 @@ def count_tokens(text: str, model: str = "gpt-4") -> int:
 
     except ImportError:
         # Fallback: estimate ~4 characters per token
-        logger.warning("tiktoken not installed, using character-based estimation")
+        logger.warning(
+            "tiktoken not installed, using character-based estimation. "
+            "For accurate token counting, install with: pip install tiktoken"
+        )
         return len(text) // 4
 
 

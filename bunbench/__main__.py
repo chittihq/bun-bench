@@ -7,13 +7,30 @@ building Docker images, and managing the benchmark suite.
 
 import argparse
 import logging
+import os
 import sys
+from datetime import datetime
 from typing import List, Optional
 
+# Load .env file if it exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 # Configure logging
+log_dir = "logs"
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, f"bunbench_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(log_file)
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -30,6 +47,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     from bunbench.harness.run_evaluation import (
         run_evaluation,
         EvaluationConfig,
+        load_dataset,
     )
     from bunbench.harness.reporting import (
         generate_report,
@@ -50,24 +68,31 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             force_rebuild=args.force_rebuild,
             verbose=args.verbose,
             instance_ids=args.instance_ids,
+            local_mode=args.local,
         )
 
         # Run evaluation
         results = run_evaluation(config)
 
-        # Generate and save report
-        report = generate_report(
-            results,
-            config=vars(args),
-            include_test_output=not args.no_output,
-        )
+        # Generate combined report for summary
+        config_dict = {k: v for k, v in vars(args).items() if k != 'func' and not callable(v)}
+        report = generate_report(results, config=config_dict, include_test_output=not args.no_output)
 
-        report_path = os.path.join(args.output, "evaluation_report.json")
-        save_report(report, report_path)
+        # Save report to each task folder
+        for result in results:
+            task_dir = None
+            for instance in load_dataset(args.dataset):
+                if instance.get("instance_id") == result.instance_id:
+                    task_dir = instance.get("task_dir")
+                    break
+            if task_dir:
+                task_report_path = os.path.join(task_dir, "evaluation_report.json")
+                task_report = generate_report([result], config=config_dict, include_test_output=not args.no_output)
+                save_report(task_report, task_report_path)
+                print(f"Report saved to: {task_report_path}")
 
         # Print summary
         print_report_summary(report)
-        print(f"\nFull report saved to: {report_path}")
 
         # Return exit code based on results
         if report.errors > 0:
@@ -261,12 +286,12 @@ def create_parser() -> argparse.ArgumentParser:
     )
     eval_parser.add_argument(
         "--dataset", "-d",
-        required=True,
+        default="dataset/tasks_from_dirs.json",
         help="Path to dataset JSON or HuggingFace identifier"
     )
     eval_parser.add_argument(
         "--predictions", "-p",
-        required=True,
+        default="predictions.jsonl",
         help="Path to predictions JSON (instance_id -> patch)"
     )
     eval_parser.add_argument(
@@ -300,6 +325,11 @@ def create_parser() -> argparse.ArgumentParser:
         "--verbose", "-v",
         action="store_true",
         help="Enable verbose output"
+    )
+    eval_parser.add_argument(
+        "--local", "-l",
+        action="store_true",
+        help="Run tests locally without Docker (for development/testing)"
     )
     eval_parser.add_argument(
         "--instance-ids",

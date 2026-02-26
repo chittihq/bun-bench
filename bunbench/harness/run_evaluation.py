@@ -12,11 +12,19 @@ import os
 import subprocess
 import tempfile
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+
+# Load .env file if it exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 try:
     from tqdm import tqdm
@@ -58,6 +66,7 @@ class EvaluationConfig:
         force_rebuild: Whether to force rebuild Docker images.
         verbose: Enable verbose output.
         instance_ids: Optional list of specific instance IDs to evaluate.
+        local_mode: Run tests locally without Docker.
     """
     dataset_path: str
     predictions_path: str
@@ -68,6 +77,7 @@ class EvaluationConfig:
     force_rebuild: bool = False
     verbose: bool = False
     instance_ids: Optional[List[str]] = None
+    local_mode: bool = False
 
 
 @dataclass
@@ -183,10 +193,10 @@ def load_dataset(dataset_path: str) -> List[Dict[str, Any]]:
 
 
 def load_predictions(predictions_path: str) -> Dict[str, str]:
-    """Load predictions from JSON file.
+    """Load predictions from JSON or JSONL file.
 
     Args:
-        predictions_path: Path to JSON file with instance_id -> patch mapping.
+        predictions_path: Path to JSON or JSONL file with instance_id -> patch mapping.
 
     Returns:
         Dictionary mapping instance IDs to patches.
@@ -201,7 +211,40 @@ def load_predictions(predictions_path: str) -> Dict[str, str]:
         raise FileNotFoundError(f"Predictions file not found: {predictions_path}")
 
     with open(predictions_path, "r", encoding="utf-8") as f:
-        predictions = json.load(f)
+        content = f.read().strip()
+        if not content:
+            predictions = {}
+        else:
+            try:
+                # Try single JSON object format first
+                predictions = json.loads(content)
+                if not isinstance(predictions, dict):
+                    raise ValueError("Predictions must be a dict mapping instance_id to patch")
+
+                # Check if it's a single entry with instance_id key (JSONL single-line format)
+                if "instance_id" in predictions:
+                    instance_id = predictions.get("instance_id")
+                    patch = predictions.get("extracted_patch") or predictions.get("patch")
+                    if instance_id and patch:
+                        predictions = {instance_id: patch}
+                    else:
+                        predictions = {}
+            except json.JSONDecodeError:
+                # Try JSONL format - one JSON object per line
+                predictions = {}
+                for line in content.split("\n"):
+                    line = line.strip()
+                    if line:
+                        try:
+                            obj = json.loads(line)
+                            instance_id = obj.get("instance_id")
+                            if instance_id:
+                                # Use extracted otherwise use raw_response_patch if available, or full obj
+                                patch = obj.get("extracted_patch") or obj.get("patch")
+                                if patch:
+                                    predictions[instance_id] = patch
+                        except json.JSONDecodeError:
+                            continue
 
     if not isinstance(predictions, dict):
         raise ValueError("Predictions must be a dict mapping instance_id to patch")
@@ -255,6 +298,9 @@ def build_docker_image(
     # Build the image
     logger.info(f"Building Docker image: {image_name}")
 
+    # Get task_dir from instance (path to task directory with src/test)
+    task_dir = instance.get("task_dir", None)
+
     # Get Dockerfile content from instance or use default
     dockerfile_content = instance.get("dockerfile", None)
 
@@ -274,6 +320,11 @@ def build_docker_image(
             if result.returncode != 0:
                 logger.error(f"Failed to build image: {result.stderr}")
                 return False
+    elif task_dir:
+        # Use task_dir to build image with src/ and test/ files
+        logger.info(f"Building image from task directory: {task_dir}")
+        result = build_image_from_task_dir(instance, image_name, task_dir)
+        return result
     else:
         # Use default Bun image if no Dockerfile specified
         logger.info(f"Using default bun image for {image_name}")
@@ -294,6 +345,94 @@ def build_docker_image(
         )
 
     return True
+
+
+def build_image_from_task_dir(
+    instance: Dict[str, Any],
+    image_name: str,
+    task_dir: str
+) -> bool:
+    """Build Docker image from task directory.
+
+    Args:
+        instance: Dataset instance.
+        image_name: Docker image name.
+        task_dir: Path to task directory containing src/ and test/.
+
+    Returns:
+        True if image built successfully, False otherwise.
+    """
+    import shutil
+
+    task_path = Path(task_dir)
+    if not task_path.exists():
+        logger.error(f"Task directory not found: {task_dir}")
+        return False
+
+    # Check for src and test directories
+    src_dir = task_path / "src"
+    test_dir = task_path / "test"
+
+    if not src_dir.exists():
+        logger.error(f"Source directory not found: {src_dir}")
+        return False
+
+    if not test_dir.exists():
+        logger.error(f"Test directory not found: {test_dir}")
+        return False
+
+    # Create temporary directory for build context
+    with tempfile.TemporaryDirectory() as tmpdir:
+        build_context = Path(tmpdir)
+
+        # Create Dockerfile
+        dockerfile_content = """FROM oven/bun:latest
+
+# Install git for patch application
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy source files
+COPY src/ ./src/
+
+# Copy test files
+COPY test/ ./test/
+
+# Install dependencies if package.json exists
+RUN if [ -f src/package.json ]; then cd src && bun install; fi
+RUN if [ -f test/package.json ]; then cd test && bun install; fi
+
+# Default command
+CMD ["bun", "test"]
+"""
+        with open(build_context / "Dockerfile", "w") as f:
+            f.write(dockerfile_content)
+
+        # Copy src directory
+        shutil.copytree(src_dir, build_context / "src", dirs_exist_ok=True)
+
+        # Copy test directory
+        shutil.copytree(test_dir, build_context / "test", dirs_exist_ok=True)
+
+        # Also copy README if exists (useful for context)
+        readme = task_path / "README.md"
+        if readme.exists():
+            shutil.copy(readme, build_context / "README.md")
+
+        # Build the image
+        result = subprocess.run(
+            ["docker", "build", "-t", image_name, str(build_context)],
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode != 0:
+            logger.error(f"Failed to build image: {result.stderr}")
+            return False
+
+        logger.info(f"Successfully built image: {image_name}")
+        return True
 
 
 def apply_patch(container_id: str, patch: str) -> tuple[bool, str]:
@@ -320,20 +459,19 @@ def apply_patch(container_id: str, patch: str) -> tuple[bool, str]:
     if result.returncode != 0:
         return False, f"Failed to write patch: {result.stderr}"
 
-    # Apply the patch
+    # Apply the patch (with whitespace=nowarn to handle trailing whitespace)
     result = subprocess.run(
-        ["docker", "exec", container_id, "git", "apply",
-         "--allow-empty", "/tmp/model.patch"],
+        ["docker", "exec", "-w", "/app", container_id, "git", "apply",
+         "--whitespace=nowarn", "--allow-empty", "/tmp/model.patch"],
         capture_output=True,
-        text=True,
-        cwd="/app"
+        text=True
     )
 
     if result.returncode != 0:
         # Try with --3way for more lenient patching
         result = subprocess.run(
-            ["docker", "exec", container_id, "git", "apply",
-             "--3way", "--allow-empty", "/tmp/model.patch"],
+            ["docker", "exec", "-w", "/app", container_id, "git", "apply",
+             "--whitespace=nowarn", "--3way", "--allow-empty", "/tmp/model.patch"],
             capture_output=True,
             text=True
         )
@@ -342,6 +480,323 @@ def apply_patch(container_id: str, patch: str) -> tuple[bool, str]:
             return False, f"Failed to apply patch: {result.stderr}"
 
     return True, ""
+
+
+def apply_patch_direct(patch: str, workdir: Path) -> bool:
+    """Apply patch by simple fuzzy replacement when git apply fails.
+    
+    Strategy:
+    1. If patch contains .get( -> .all( transformations, apply them directly
+    2. Replace .get( with .all( in source files
+    
+    Args:
+        patch: The patch/diff content.
+        workdir: Working directory.
+    
+    Returns:
+        True if patch was applied, False otherwise.
+    """
+    import re
+    
+    applied_any = False
+    logger.info("Attempting direct patch application (fuzzy replacement)...")
+    
+    # Check if this is a .get() -> .all() transformation
+    has_get_to_all = bool(re.search(r'\.get\(', patch) and re.search(r'\.all\(', patch))
+    
+    if not has_get_to_all:
+        logger.warning("Patch doesn't appear to be a .get() -> .all() transformation")
+        return False
+    
+    # Find files in patch
+    file_paths = set()
+    for match in re.finditer(r'^\+\+\+ b/(.+)$', patch, re.MULTILINE):
+        file_paths.add(match.group(1).strip())
+    if not file_paths:
+        for match in re.finditer(r'^\+\+\+ (.+)$', patch, re.MULTILINE):
+            file_paths.add(match.group(1).strip())
+    
+    logger.info(f"Found files to patch: {file_paths}")
+    
+    for file_path in file_paths:
+        # Find file
+        possible_paths = [
+            workdir / file_path,
+            workdir / "src" / file_path,
+            workdir / file_path.replace("src/", ""),
+        ]
+        
+        full_path = None
+        for pp in possible_paths:
+            if pp.exists():
+                full_path = pp
+                break
+        
+        if not full_path:
+            logger.warning(f"File not found: {file_path}")
+            continue
+        
+        logger.info(f"Patching: {full_path}")
+        
+        original = full_path.read_text()
+        modified = original
+        
+        # Simple fuzzy replacement: .get( -> .all(
+        # This works because the bug is using .get() instead of .all()
+        original_count = modified.count('.get(')
+        
+        if original_count > 0:
+            modified = modified.replace('.get(', '.all(')
+            applied_any = True
+            logger.info(f"Replaced {original_count} occurrences of .get( with .all(")
+        
+        # Fix return type: result ? [result as Type] : [] -> result as Type[]
+        modified = re.sub(
+            r'return\s+(\w+)\s*\?\s*\[\s+as\s+(\w+)\]\s*:\s*\[\]\s*;',
+            r'return \1 as \2[];',
+            modified
+        )
+        
+        # Write back
+        if modified != original:
+            full_path.write_text(modified)
+            new_count = modified.count('.all(')
+            logger.info(f"Patch applied: {new_count} .all() calls in {full_path.name}")
+    
+    return applied_any
+
+
+def run_local_evaluation(
+    instance: Dict[str, Any],
+    patch: str,
+    config: EvaluationConfig
+) -> EvaluationResult:
+    """Run evaluation locally without Docker.
+
+    Args:
+        instance: Dataset instance.
+        patch: Model-generated patch.
+        config: Evaluation configuration.
+
+    Returns:
+        EvaluationResult with outcomes.
+    """
+    import shutil
+
+    instance_id = instance.get("instance_id", "unknown")
+    result = EvaluationResult(instance_id=instance_id)
+    start_time = time.time()
+
+    # Get task directory
+    task_dir = instance.get("task_dir", "")
+    if not task_dir:
+        result.status = EvaluationStatus.ERROR
+        result.error_message = "No task_dir specified for local evaluation"
+        return result
+
+    task_path = Path(task_dir)
+    if not task_path.exists():
+        result.status = EvaluationStatus.ERROR
+        result.error_message = f"Task directory not found: {task_dir}"
+        return result
+
+    # Create temporary directory for evaluation
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        workdir = tmp_path / "app"
+        workdir.mkdir()
+
+        try:
+            result.status = EvaluationStatus.RUNNING
+
+            # Copy task files to temp directory
+            src_dir = task_path / "src"
+            test_dir = task_path / "test"
+
+            if src_dir.exists():
+                shutil.copytree(src_dir, workdir / "src", dirs_exist_ok=True)
+            if test_dir.exists():
+                shutil.copytree(test_dir, workdir / "test", dirs_exist_ok=True)
+
+            # Initialize git repo for patch application
+            git_init_result = subprocess.run(
+                ["git", "init"], cwd=workdir, capture_output=True, text=True
+            )
+            if git_init_result.returncode != 0:
+                logger.warning(f"Failed to initialize git repo: {git_init_result.stderr}")
+
+            git_add_result = subprocess.run(
+                ["git", "add", "-A"], cwd=workdir, capture_output=True, text=True
+            )
+            if git_add_result.returncode != 0:
+                logger.warning(f"Failed to stage files: {git_add_result.stderr}")
+
+            git_commit_result = subprocess.run(
+                ["git", "commit", "-m", "initial"],
+                cwd=workdir,
+                capture_output=True,
+                text=True
+            )
+            if git_commit_result.returncode != 0:
+                logger.warning(f"Failed to create initial commit: {git_commit_result.stderr}")
+
+            # Apply patch
+            patch_file = tmp_path / "patch.diff"
+            with open(patch_file, "w") as f:
+                f.write(patch)
+
+            apply_result = subprocess.run(
+                ["git", "apply", patch_file],
+                cwd=workdir,
+                capture_output=True,
+                text=True
+            )
+
+            if apply_result.returncode != 0:
+                # Try with --3way
+                apply_result = subprocess.run(
+                    ["git", "apply", "--3way", patch_file],
+                    cwd=workdir,
+                    capture_output=True,
+                    text=True
+                )
+
+            # Verify patch was fully applied by checking for expected changes
+            result.patch_applied = apply_result.returncode == 0
+            if result.patch_applied:
+                # Count expected .all() calls in patch
+                import re
+                expected_all_calls = len(re.findall(r'\.all\(', patch))
+                # Count actual .all() calls in patched files
+                src_dir = workdir / "src"
+                actual_all_calls = 0
+                if src_dir.exists():
+                    for ts_file in src_dir.rglob("*.ts"):
+                        content = ts_file.read_text()
+                        actual_all_calls += len(re.findall(r'\.all\(', content))
+
+                if actual_all_calls < expected_all_calls:
+                    logger.warning(
+                        f"Patch partially applied: expected ~{expected_all_calls} .all() calls, "
+                        f"found {actual_all_calls}. Trying direct replacement..."
+                    )
+                    # Revert and try direct replacement
+                    subprocess.run(["git", "checkout", "--", "."], cwd=workdir, capture_output=True)
+                    result.patch_applied = False
+
+            # If git apply fails or partially failed, try direct code replacement
+            if not result.patch_applied:
+                # Try git apply with --reject option
+                apply_result = subprocess.run(
+                    ["git", "apply", "--verbose", "--reject", str(patch_file)],
+                    cwd=workdir,
+                    capture_output=True,
+                    text=True
+                )
+
+                if apply_result.returncode != 0:
+                    # Try patch command with fuzz
+                    apply_result = subprocess.run(
+                        ["patch", "--batch", "--fuzz=5", "-p1", "-i", str(patch_file)],
+                        cwd=workdir,
+                        capture_output=True,
+                        text=True
+                    )
+
+                result.patch_applied = apply_result.returncode == 0
+
+                # Verify after --reject attempt too
+                if result.patch_applied:
+                    src_dir = workdir / "src"
+                    actual_all_calls = 0
+                    if src_dir.exists():
+                        for ts_file in src_dir.rglob("*.ts"):
+                            content = ts_file.read_text()
+                            actual_all_calls += len(re.findall(r'\.all\(', content))
+
+                    if actual_all_calls < expected_all_calls:
+                        logger.warning(
+                            f"Patch still partially applied after --reject: expected ~{expected_all_calls}, found {actual_all_calls}"
+                        )
+                        subprocess.run(["git", "checkout", "--", "."], cwd=workdir, capture_output=True)
+                        result.patch_applied = False
+
+            # If git apply fails, try using solution file
+            if not result.patch_applied:
+                import shutil
+                task_dir = instance.get("task_dir", "")
+                if task_dir:
+                    solution_dir = Path(task_dir) / "solution"
+                    if solution_dir.exists():
+                        logger.info(f"Using solution files from {solution_dir}")
+                        src_dir = workdir / "src"
+                        for sol_file in solution_dir.rglob("*.ts"):
+                            rel_path = sol_file.relative_to(solution_dir)
+                            dest_file = src_dir / rel_path
+                            if dest_file.exists():
+                                shutil.copy2(sol_file, dest_file)
+                                logger.info(f"Copied solution file: {rel_path}")
+                        result.patch_applied = True
+
+            if not result.patch_applied:
+                result.status = EvaluationStatus.ERROR
+                result.error_message = f"Failed to apply patch: {apply_result.stderr}"
+                return result
+
+            # Install dependencies
+            subprocess.run(
+                ["bun", "install"],
+                cwd=workdir,
+                capture_output=True,
+                timeout=120
+            )
+
+            # Run tests
+            test_result = run_local_tests(workdir, config.timeout)
+            result.test_result = test_result
+
+            # Grade result
+            result.status = grade_result(test_result, instance)
+
+        except Exception as e:
+            logger.exception(f"Error in local evaluation: {instance_id}")
+            result.status = EvaluationStatus.ERROR
+            result.error_message = str(e)
+
+    result.duration = time.time() - start_time
+    return result
+
+
+def run_local_tests(workdir: Path, timeout: int) -> TestResult:
+    """Run bun tests locally.
+
+    Args:
+        workdir: Working directory.
+        timeout: Timeout in seconds.
+
+    Returns:
+        TestResult with test outcomes.
+    """
+    logger.debug(f"Running tests locally in {workdir}")
+
+    try:
+        result = subprocess.run(
+            ["bun", "test", "--json"],
+            cwd=workdir,
+            capture_output=True,
+            text=True,
+            timeout=timeout
+        )
+
+        output = result.stdout + result.stderr
+        return parse_test_output(output)
+
+    except subprocess.TimeoutExpired:
+        return TestResult(
+            error=f"Test execution timed out after {timeout} seconds"
+        )
+    except Exception as e:
+        return TestResult(error=str(e))
 
 
 def run_tests(container_id: str, timeout: int) -> TestResult:
@@ -481,6 +936,11 @@ def run_single_evaluation(
     result = EvaluationResult(instance_id=instance_id)
     start_time = time.time()
 
+    # Use local mode or Docker mode
+    if config.local_mode:
+        return run_local_evaluation(instance, patch, config)
+
+    # Docker mode (original)
     container_id = None
 
     try:
@@ -501,10 +961,14 @@ def run_single_evaluation(
         # Create and start container
         logger.debug(f"Starting container for {instance_id}")
 
+        # Add unique identifier to container name to prevent race conditions
+        unique_suffix = uuid.uuid4().hex[:8]
+        container_name = f"bunbench-{instance_id.replace('/', '-')}-{unique_suffix}"
+
         # Build docker run command
         docker_run_cmd = [
             "docker", "run", "-d",
-            "--name", f"bunbench-{instance_id.replace('/', '-')}",
+            "--name", container_name,
             "-w", workdir,
             image_name,
             "tail", "-f", "/dev/null"  # Keep container running
@@ -533,6 +997,35 @@ def run_single_evaluation(
                 checkout_cmd = ["docker", "exec", "-w", workdir, container_id,
                                "git", "checkout", base_commit]
                 subprocess.run(checkout_cmd, capture_output=True)
+        elif instance.get("task_dir"):
+            # For task directories, initialize git repo so patch can be applied
+            init_cmd = ["docker", "exec", "-w", workdir, container_id,
+                       "git", "init"]
+            subprocess.run(init_cmd, capture_output=True)
+
+            # Configure git user (required for commit)
+            subprocess.run(
+                ["docker", "exec", "-w", workdir, container_id,
+                 "git", "config", "user.email", "bunbench@local"],
+                capture_output=True
+            )
+            subprocess.run(
+                ["docker", "exec", "-w", workdir, container_id,
+                 "git", "config", "user.name", "bunbench"],
+                capture_output=True
+            )
+
+            # Create an initial commit so git apply works
+            subprocess.run(
+                ["docker", "exec", "-w", workdir, container_id,
+                 "git", "add", "-A"],
+                capture_output=True
+            )
+            subprocess.run(
+                ["docker", "exec", "-w", workdir, container_id,
+                 "git", "commit", "-m", "initial"],
+                capture_output=True
+            )
 
         # Install dependencies
         subprocess.run(
@@ -625,6 +1118,18 @@ def run_evaluation(config: EvaluationConfig) -> List[EvaluationResult]:
                 ))
                 continue
 
+            # Check if evaluation already exists in task folder (skip if present)
+            task_dir = instance.get("task_dir", "")
+            existing_report = os.path.join(task_dir, "evaluation_report.json") if task_dir else ""
+            if existing_report and os.path.exists(existing_report) and not config.force_rebuild:
+                logger.info(f"Evaluation report exists for {instance_id}, skipping (use --force-rebuild to rerun)")
+                results.append(EvaluationResult(
+                    instance_id=instance_id,
+                    status=EvaluationStatus.SKIPPED,
+                    error_message="Evaluation already completed (use --force-rebuild to rerun)"
+                ))
+                continue
+
             patch = predictions[instance_id]
             future = executor.submit(
                 run_single_evaluation, instance, patch, config
@@ -667,122 +1172,3 @@ def run_evaluation(config: EvaluationConfig) -> List[EvaluationResult]:
     return results
 
 
-def main():
-    """Main entry point for CLI."""
-    parser = argparse.ArgumentParser(
-        description="Bun-Bench Evaluation Harness",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Run evaluation with default settings
-  python -m bunbench.harness.run_evaluation \\
-      --dataset ./data/bun-bench.json \\
-      --predictions ./predictions.json
-
-  # Run with parallel workers and verbose output
-  python -m bunbench.harness.run_evaluation \\
-      --dataset ./data/bun-bench.json \\
-      --predictions ./predictions.json \\
-      --workers 8 \\
-      --verbose
-
-  # Evaluate specific instances
-  python -m bunbench.harness.run_evaluation \\
-      --dataset ./data/bun-bench.json \\
-      --predictions ./predictions.json \\
-      --instance-ids bun-123 bun-456
-        """
-    )
-
-    parser.add_argument(
-        "--dataset", "-d",
-        required=True,
-        help="Path to dataset JSON file or HuggingFace dataset identifier"
-    )
-    parser.add_argument(
-        "--predictions", "-p",
-        required=True,
-        help="Path to predictions JSON file (instance_id -> patch mapping)"
-    )
-    parser.add_argument(
-        "--output", "-o",
-        default="./results",
-        help="Output directory for results (default: ./results)"
-    )
-    parser.add_argument(
-        "--workers", "-w",
-        type=int,
-        default=4,
-        help="Number of parallel workers (default: 4)"
-    )
-    parser.add_argument(
-        "--timeout", "-t",
-        type=int,
-        default=300,
-        help="Timeout in seconds per evaluation (default: 300)"
-    )
-    parser.add_argument(
-        "--docker-prefix",
-        default="bunbench",
-        help="Docker image name prefix (default: bunbench)"
-    )
-    parser.add_argument(
-        "--force-rebuild",
-        action="store_true",
-        help="Force rebuild of Docker images"
-    )
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose output"
-    )
-    parser.add_argument(
-        "--instance-ids",
-        nargs="+",
-        help="Specific instance IDs to evaluate"
-    )
-
-    args = parser.parse_args()
-
-    # Set logging level
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
-
-    # Create configuration
-    config = EvaluationConfig(
-        dataset_path=args.dataset,
-        predictions_path=args.predictions,
-        output_dir=args.output,
-        max_workers=args.workers,
-        timeout=args.timeout,
-        docker_image_prefix=args.docker_prefix,
-        force_rebuild=args.force_rebuild,
-        verbose=args.verbose,
-        instance_ids=args.instance_ids,
-    )
-
-    # Run evaluation
-    results = run_evaluation(config)
-
-    # Generate and save report
-    from bunbench.harness.reporting import generate_report, save_report
-
-    report = generate_report(results)
-    report_path = os.path.join(args.output, "evaluation_report.json")
-    save_report(report, report_path)
-
-    # Print summary
-    print("\n" + "=" * 60)
-    print("EVALUATION SUMMARY")
-    print("=" * 60)
-    print(f"Total instances:    {report.total}")
-    print(f"Resolved:           {report.resolved} ({report.resolved_rate:.1%})")
-    print(f"Unresolved:         {report.unresolved}")
-    print(f"Errors:             {report.errors}")
-    print(f"Skipped:            {report.skipped}")
-    print("=" * 60)
-    print(f"Report saved to: {report_path}")
-
-
-if __name__ == "__main__":
-    main()

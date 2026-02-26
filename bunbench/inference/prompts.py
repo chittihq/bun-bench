@@ -8,81 +8,73 @@ along with utilities for formatting prompts for different model styles.
 from typing import Dict, Any, Optional
 
 # System prompt for code fixing tasks
-SYSTEM_PROMPT = """You are an expert software engineer specializing in the Bun JavaScript runtime.
-Your task is to analyze bug reports or feature requests and generate patches to fix or implement them.
+SYSTEM_PROMPT = """You are an expert Bun JavaScript runtime developer.
 
-When generating patches:
-1. Analyze the problem statement carefully
-2. Identify the root cause of the bug or the requirements for the feature
-3. Generate a minimal, focused patch that addresses the issue
-4. Follow the existing code style and conventions
-5. Include necessary test modifications if applicable
+Your task is to generate a PATCH (diff) to fix bugs in the provided source code.
 
-Output your solution as a unified diff patch that can be applied with `git apply` or `patch -p1`.
+STRICT RULES - MUST FOLLOW:
+1. ONLY modify the files shown in the code context below
+2. Do NOT add new functions, classes, or files that don't exist
+3. Do NOT rewrite existing code - only fix the specific bug
+4. Match the EXACT indentation, spacing, and coding style
+5. The patch must apply cleanly with `git apply`
 
-Format your patch response as follows:
-```diff
---- a/path/to/file.ts
-+++ b/path/to/file.ts
-@@ -line,count +line,count @@
- context line
--removed line
-+added line
- context line
-```
-
-Important guidelines:
-- Use the exact file paths as they appear in the codebase
-- Include sufficient context lines (typically 3) around changes
-- Make minimal changes - only modify what's necessary to fix the issue
-- Preserve existing formatting and style
-- If multiple files need changes, include all of them in the same patch
-- Do not include any explanation outside the diff block unless specifically asked
-"""
+Your response must ONLY contain the diff patch in ```diff``` blocks.
+Do NOT include any explanation, comments, or text outside the diff blocks."""
 
 # User prompt template for code fixing tasks
-USER_PROMPT = """## Problem Statement
+USER_PROMPT = """## BUG TO FIX
 
 {problem_statement}
 
-## Relevant Code Context
+## SOURCE CODE (FIX THIS EXACT CODE)
 
 {code_context}
 
-## Instructions
+## CRITICAL INSTRUCTIONS
 
-Please analyze the problem and generate a unified diff patch to fix this issue.
-Wrap your patch in ```diff``` code blocks.
+1. Look at the source code ABOVE - this is the ONLY code you can modify
+2. The bug is: {problem_statement}
+3. Generate a patch that fixes ONLY this specific bug
+4. Do NOT create new classes, functions, or rewrite the code
+5. Do NOT change anything except what's needed to fix the bug
+6. Match the exact indentation and style of the existing code
+7. Your patch must start with --- a/src/xxx and +++ b/src/xxx
+
+Output ONLY the diff patch in ```diff``` blocks. No explanation needed.
 """
 
 # Alternative user prompt for minimal context
-USER_PROMPT_MINIMAL = """## Problem Statement
+USER_PROMPT_MINIMAL = """## BUG TO FIX
 
 {problem_statement}
 
 ## Instructions
 
-Please analyze the problem and generate a unified diff patch to fix this issue.
-Wrap your patch in ```diff``` code blocks.
+1. Analyze the bug described above
+2. Generate a minimal patch to fix ONLY this bug
+3. Do NOT rewrite or add new code
+4. Match the existing code style exactly
+
+Output ONLY the diff patch in ```diff``` blocks.
 """
 
 # Example patch format for reference
 EXAMPLE_PATCH = '''```diff
---- a/src/bun.js/api/server.zig
-+++ b/src/bun.js/api/server.zig
-@@ -1234,7 +1234,7 @@ fn calculateContentLength(body: []const u8) usize {
--    return body.len;
-+    return std.mem.len(body);
- }
-
---- a/test/js/bun/http/serve.test.ts
-+++ b/test/js/bun/http/serve.test.ts
-@@ -100,6 +100,15 @@ describe("Bun.serve", () => {
-+  it("handles multi-byte UTF-8 content length correctly", async () => {
-+    const response = new Response("hello world");
-+    expect(response.headers.get("Content-Length")).toBe("15");
-+  });
- });
+--- a/src/server.ts
++++ b/src/server.ts
+@@ -5,7 +5,7 @@ const server = Bun.serve({
+   fetch(req) {
+     if (req.url.includes("/api/user")) {
+-      return new Response(JSON.stringify({name: "test"}));
++      return new Response(JSON.stringify({name: "test"}), { headers: { "Content-Type": "application/json" } });
+     }
+     if (req.url.includes("/api/items")) {
+-      return new Response(JSON.stringify([]));
++      return new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json" } });
+     }
+     return new Response("Not Found");
+   }
 ```'''
 
 

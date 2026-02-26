@@ -208,10 +208,10 @@ class OpenAIClient(APIClient):
         """
         super().__init__(model=model, **kwargs)
 
-        self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
+        self.api_key = api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
         if not self.api_key:
             raise ValueError(
-                "OpenAI API key not provided. Set OPENAI_API_KEY environment variable "
+                "API key not provided. Set OPENAI_API_KEY or OPENROUTER_API_KEY environment variable "
                 "or pass api_key parameter."
             )
 
@@ -248,6 +248,13 @@ class OpenAIClient(APIClient):
             max_tokens=max_tokens,
             timeout=self.timeout,
         )
+
+        # Defensive checks for empty responses
+        if not response.choices:
+            raise ValueError("Empty response from OpenAI API: no choices returned")
+
+        if not response.usage:
+            raise ValueError("Empty response from OpenAI API: usage information missing")
 
         return {
             "content": response.choices[0].message.content,
@@ -308,11 +315,53 @@ class AnthropicClient(APIClient):
             max_tokens=max_tokens,
         )
 
+        # Defensive checks for empty responses
+        if not response.content:
+            raise ValueError("Empty response from Anthropic API: no content returned")
+
         return {
             "content": response.content[0].text,
             "input_tokens": response.usage.input_tokens,
             "output_tokens": response.usage.output_tokens,
         }
+
+
+def read_task_source_files(task_dir: str) -> str:
+    """Read source files from task directory.
+
+    Args:
+        task_dir: Path to task directory.
+
+    Returns:
+        String containing source file contents.
+    """
+    from pathlib import Path
+
+    task_path = Path(task_dir)
+    if not task_path.exists():
+        return ""
+
+    src_dir = task_path / "src"
+    if not src_dir.exists():
+        return ""
+
+    context_parts = ["## Source Code Files\n"]
+
+    # Read all TypeScript/JavaScript files from src/
+    for file_path in sorted(src_dir.rglob("*.ts")):
+        rel_path = file_path.relative_to(task_path)
+        context_parts.append(f"\n### File: {rel_path}\n")
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                # Limit file size
+                if len(content) > 5000:
+                    content = content[:5000] + "\n... (truncated)"
+                context_parts.append(f"```{file_path.suffix[1:]}\n{content}\n```\n")
+        except Exception as e:
+            context_parts.append(f"Error reading {file_path}: {e}\n")
+
+    return "".join(context_parts)
 
 
 def load_dataset(path: str) -> List[Dict[str, Any]]:
@@ -439,7 +488,7 @@ def run_inference(
     )
 
     # Initialize client
-    if provider.lower() == "openai":
+    if provider.lower() == "openai" or provider.lower() == "openrouter":
         default_model = "gpt-4-turbo"
         client = OpenAIClient(
             model=model or default_model,
@@ -492,6 +541,12 @@ def run_inference(
         # Build prompts
         problem_statement = instance.get("problem_statement", "")
         code_context = instance.get("code_context", "")
+
+        # Auto-read source files if code_context not provided
+        if not code_context:
+            task_dir = instance.get("task_dir", "")
+            if task_dir:
+                code_context = read_task_source_files(task_dir)
 
         if provider.lower() == "openai":
             prompts = format_for_openai(
@@ -572,8 +627,14 @@ def run_inference(
             },
         )
 
-        # Save result
+        # Save result to main output path
         save_result(result, output_path)
+
+        # Also save to task folder if available
+        task_dir = instance.get("task_dir", "")
+        if task_dir:
+            task_output = os.path.join(task_dir, "predictions.jsonl")
+            save_result(result, task_output)
 
         # Update stats
         stats.update(result)
@@ -599,21 +660,21 @@ def main():
     parser.add_argument(
         "--dataset",
         "-d",
-        default=os.environ.get("BUNBENCH_DATASET", "dataset/tasks.json"),
+        default=os.environ.get("BUNBENCH_DATASET", "dataset/tasks_from_dirs.json"),
         help="Path to JSON dataset file (default: dataset/tasks.json)",
     )
     parser.add_argument(
         "--output",
         "-o",
-        default=os.environ.get("BUNBENCH_OUTPUT", "results/inference.jsonl"),
+        default=os.environ.get("BUNBENCH_OUTPUT", "predictions.jsonl"),
         help="Path to JSONL output file (default: results/inference.jsonl)",
     )
     parser.add_argument(
         "--provider",
         "-p",
         default=os.environ.get("BUNBENCH_PROVIDER", "openai"),
-        choices=["openai", "anthropic"],
-        help="API provider (default: openai)",
+        choices=["openai", "anthropic", "openrouter"],
+        help="API provider (default: openai, or openrouter)",
     )
     parser.add_argument(
         "--model",
@@ -630,7 +691,7 @@ def main():
     parser.add_argument(
         "--api-key",
         "-k",
-        default=os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY"),
+        default=os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENROUTER_API_KEY"),
         help="API key (default: from env)",
     )
     parser.add_argument(

@@ -53,7 +53,7 @@ all = [
 ]
 
 [project.scripts]
-bun-bench = "bunbench.cli:main"
+bunbench = "bunbench.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/bun-bench/bun-bench"

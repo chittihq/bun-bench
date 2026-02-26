@@ -14,6 +14,7 @@ lib/
 lib64/
 parts/
 sdist/
+/dataset
 var/
 wheels/
 *.egg-info/
@@ -44,6 +45,8 @@ bun.lockb
 *.swp
 *.swo
 *~
+*.jsonl
+*.json
 .project
 .classpath
 .settings/
