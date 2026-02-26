@@ -5,7 +5,6 @@ This module provides the core functionality for running evaluations of
 model-generated patches against the Bun-Bench benchmark suite.
 """
 
-import argparse
 import json
 import logging
 import os
@@ -34,11 +33,6 @@ except ImportError:
         return iterable
 
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
 
@@ -481,89 +475,6 @@ def apply_patch(container_id: str, patch: str) -> tuple[bool, str]:
 
     return True, ""
 
-
-def apply_patch_direct(patch: str, workdir: Path) -> bool:
-    """Apply patch by simple fuzzy replacement when git apply fails.
-    
-    Strategy:
-    1. If patch contains .get( -> .all( transformations, apply them directly
-    2. Replace .get( with .all( in source files
-    
-    Args:
-        patch: The patch/diff content.
-        workdir: Working directory.
-    
-    Returns:
-        True if patch was applied, False otherwise.
-    """
-    import re
-    
-    applied_any = False
-    logger.info("Attempting direct patch application (fuzzy replacement)...")
-    
-    # Check if this is a .get() -> .all() transformation
-    has_get_to_all = bool(re.search(r'\.get\(', patch) and re.search(r'\.all\(', patch))
-    
-    if not has_get_to_all:
-        logger.warning("Patch doesn't appear to be a .get() -> .all() transformation")
-        return False
-    
-    # Find files in patch
-    file_paths = set()
-    for match in re.finditer(r'^\+\+\+ b/(.+)$', patch, re.MULTILINE):
-        file_paths.add(match.group(1).strip())
-    if not file_paths:
-        for match in re.finditer(r'^\+\+\+ (.+)$', patch, re.MULTILINE):
-            file_paths.add(match.group(1).strip())
-    
-    logger.info(f"Found files to patch: {file_paths}")
-    
-    for file_path in file_paths:
-        # Find file
-        possible_paths = [
-            workdir / file_path,
-            workdir / "src" / file_path,
-            workdir / file_path.replace("src/", ""),
-        ]
-        
-        full_path = None
-        for pp in possible_paths:
-            if pp.exists():
-                full_path = pp
-                break
-        
-        if not full_path:
-            logger.warning(f"File not found: {file_path}")
-            continue
-        
-        logger.info(f"Patching: {full_path}")
-        
-        original = full_path.read_text()
-        modified = original
-        
-        # Simple fuzzy replacement: .get( -> .all(
-        # This works because the bug is using .get() instead of .all()
-        original_count = modified.count('.get(')
-        
-        if original_count > 0:
-            modified = modified.replace('.get(', '.all(')
-            applied_any = True
-            logger.info(f"Replaced {original_count} occurrences of .get( with .all(")
-        
-        # Fix return type: result ? [result as Type] : [] -> result as Type[]
-        modified = re.sub(
-            r'return\s+(\w+)\s*\?\s*\[\s+as\s+(\w+)\]\s*:\s*\[\]\s*;',
-            r'return \1 as \2[];',
-            modified
-        )
-        
-        # Write back
-        if modified != original:
-            full_path.write_text(modified)
-            new_count = modified.count('.all(')
-            logger.info(f"Patch applied: {new_count} .all() calls in {full_path.name}")
-    
-    return applied_any
 
 
 def run_local_evaluation(
