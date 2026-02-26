@@ -12,18 +12,12 @@ import subprocess
 import tempfile
 import time
 import uuid
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-
-# Load .env file if it exists
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
 
 try:
     from tqdm import tqdm
@@ -429,6 +423,15 @@ CMD ["bun", "test"]
         return True
 
 
+def _looks_like_diff(text: str) -> bool:
+    """Check if text appears to be a unified diff."""
+    indicators = [r'^--- ', r'^\+\+\+ ', r'^@@ ', r'^diff --git ']
+    for pattern in indicators:
+        if re.search(pattern, text, re.MULTILINE):
+            return True
+    return False
+
+
 def apply_patch(container_id: str, patch: str) -> tuple[bool, str]:
     """Apply a git patch inside the container.
 
@@ -551,7 +554,7 @@ def run_local_evaluation(
             if git_commit_result.returncode != 0:
                 logger.warning(f"Failed to create initial commit: {git_commit_result.stderr}")
 
-            # Apply patch
+            # Apply patch using git apply
             patch_file = tmp_path / "patch.diff"
             with open(patch_file, "w") as f:
                 f.write(patch)
@@ -563,92 +566,9 @@ def run_local_evaluation(
                 text=True
             )
 
-            if apply_result.returncode != 0:
-                # Try with --3way
-                apply_result = subprocess.run(
-                    ["git", "apply", "--3way", patch_file],
-                    cwd=workdir,
-                    capture_output=True,
-                    text=True
-                )
-
-            # Verify patch was fully applied by checking for expected changes
             result.patch_applied = apply_result.returncode == 0
-            if result.patch_applied:
-                # Count expected .all() calls in patch
-                import re
-                expected_all_calls = len(re.findall(r'\.all\(', patch))
-                # Count actual .all() calls in patched files
-                src_dir = workdir / "src"
-                actual_all_calls = 0
-                if src_dir.exists():
-                    for ts_file in src_dir.rglob("*.ts"):
-                        content = ts_file.read_text()
-                        actual_all_calls += len(re.findall(r'\.all\(', content))
 
-                if actual_all_calls < expected_all_calls:
-                    logger.warning(
-                        f"Patch partially applied: expected ~{expected_all_calls} .all() calls, "
-                        f"found {actual_all_calls}. Trying direct replacement..."
-                    )
-                    # Revert and try direct replacement
-                    subprocess.run(["git", "checkout", "--", "."], cwd=workdir, capture_output=True)
-                    result.patch_applied = False
-
-            # If git apply fails or partially failed, try direct code replacement
-            if not result.patch_applied:
-                # Try git apply with --reject option
-                apply_result = subprocess.run(
-                    ["git", "apply", "--verbose", "--reject", str(patch_file)],
-                    cwd=workdir,
-                    capture_output=True,
-                    text=True
-                )
-
-                if apply_result.returncode != 0:
-                    # Try patch command with fuzz
-                    apply_result = subprocess.run(
-                        ["patch", "--batch", "--fuzz=5", "-p1", "-i", str(patch_file)],
-                        cwd=workdir,
-                        capture_output=True,
-                        text=True
-                    )
-
-                result.patch_applied = apply_result.returncode == 0
-
-                # Verify after --reject attempt too
-                if result.patch_applied:
-                    src_dir = workdir / "src"
-                    actual_all_calls = 0
-                    if src_dir.exists():
-                        for ts_file in src_dir.rglob("*.ts"):
-                            content = ts_file.read_text()
-                            actual_all_calls += len(re.findall(r'\.all\(', content))
-
-                    if actual_all_calls < expected_all_calls:
-                        logger.warning(
-                            f"Patch still partially applied after --reject: expected ~{expected_all_calls}, found {actual_all_calls}"
-                        )
-                        subprocess.run(["git", "checkout", "--", "."], cwd=workdir, capture_output=True)
-                        result.patch_applied = False
-
-            # If git apply fails, try using solution file
-            if not result.patch_applied:
-                import shutil
-                task_dir = instance.get("task_dir", "")
-                if task_dir:
-                    solution_dir = Path(task_dir) / "solution"
-                    if solution_dir.exists():
-                        logger.info(f"Using solution files from {solution_dir}")
-                        src_dir = workdir / "src"
-                        for sol_file in solution_dir.rglob("*.ts"):
-                            rel_path = sol_file.relative_to(solution_dir)
-                            dest_file = src_dir / rel_path
-                            if dest_file.exists():
-                                shutil.copy2(sol_file, dest_file)
-                                logger.info(f"Copied solution file: {rel_path}")
-                        result.patch_applied = True
-
+            # If patch failed, mark as error
             if not result.patch_applied:
                 result.status = EvaluationStatus.ERROR
                 result.error_message = f"Failed to apply patch: {apply_result.stderr}"
@@ -772,32 +692,31 @@ def parse_test_output(output: str) -> TestResult:
     except json.JSONDecodeError:
         pass
 
-    # Fallback: parse text output
-    lines = output.split("\n")
+    # Strip ANSI escape sequences
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    output_clean = ansi_escape.sub('', output)
+    
+    lines = output_clean.split("\n")
     for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
         line_lower = line.lower()
 
-        # Look for common patterns like "X passed", "X failed"
-        if "pass" in line_lower:
-            parts = line.split()
-            for i, part in enumerate(parts):
-                if part.isdigit() and i + 1 < len(parts) and "pass" in parts[i + 1].lower():
-                    result.passed = int(part)
-                    break
-
-        if "fail" in line_lower:
-            parts = line.split()
-            for i, part in enumerate(parts):
-                if part.isdigit() and i + 1 < len(parts) and "fail" in parts[i + 1].lower():
-                    result.failed = int(part)
-                    break
-
-        if "skip" in line_lower:
-            parts = line.split()
-            for i, part in enumerate(parts):
-                if part.isdigit() and i + 1 < len(parts) and "skip" in parts[i + 1].lower():
-                    result.skipped = int(part)
-                    break
+        # Look for the summary line: "1 pass", "3 fail"
+        # Bun standard output: " 1 pass", " 3 fail"
+        match_pass = re.search(r'(\d+)\s+pass', line_lower)
+        if match_pass:
+            result.passed = int(match_pass.group(1))
+            
+        match_fail = re.search(r'(\d+)\s+fail', line_lower)
+        if match_fail:
+            result.failed = int(match_fail.group(1))
+            
+        match_skip = re.search(r'(\d+)\s+skip', line_lower)
+        if match_skip:
+            result.skipped = int(match_skip.group(1))
 
     result.total = result.passed + result.failed + result.skipped
     return result
@@ -992,8 +911,10 @@ def run_evaluation(config: EvaluationConfig) -> List[EvaluationResult]:
     Returns:
         List of EvaluationResult for each instance.
     """
-    logger.info("Starting Bun-Bench evaluation")
-    logger.info(f"Configuration: {config}")
+    # Set logging level if verbose
+    if config.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
 
     # Load dataset and predictions
     dataset = load_dataset(config.dataset_path)

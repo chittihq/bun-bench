@@ -124,7 +124,7 @@ class APIClient(ABC):
         system_prompt: str,
         user_prompt: str,
         temperature: float = 0.0,
-        max_tokens: int = 4096,
+        max_tokens: int = 6000,
     ) -> Dict[str, Any]:
         """
         Make an API call.
@@ -145,7 +145,7 @@ class APIClient(ABC):
         system_prompt: str,
         user_prompt: str,
         temperature: float = 0.0,
-        max_tokens: int = 4096,
+        max_tokens: int = 6000,
     ) -> Dict[str, Any]:
         """
         Make an API call with retry logic.
@@ -233,7 +233,7 @@ class OpenAIClient(APIClient):
         system_prompt: str,
         user_prompt: str,
         temperature: float = 0.0,
-        max_tokens: int = 4096,
+        max_tokens: int = 6000,
     ) -> Dict[str, Any]:
         """Make an OpenAI API call."""
         messages = []
@@ -304,7 +304,7 @@ class AnthropicClient(APIClient):
         system_prompt: str,
         user_prompt: str,
         temperature: float = 0.0,
-        max_tokens: int = 4096,
+        max_tokens: int = 6000,
     ) -> Dict[str, Any]:
         """Make an Anthropic API call."""
         response = self.client.messages.create(
@@ -450,7 +450,7 @@ def run_inference(
     base_url: Optional[str] = None,
     api_key: Optional[str] = None,
     temperature: float = 0.0,
-    max_tokens: int = 4096,
+    max_tokens: int = 6000,
     prompt_style: str = "default",
     resume: bool = True,
     max_instances: Optional[int] = None,
@@ -661,32 +661,32 @@ def main():
     parser.add_argument(
         "--dataset",
         "-d",
-        default=os.environ.get("BUNBENCH_DATASET", "dataset/tasks_from_dirs.json"),
+        default=os.environ.get("BENCH_DATASET", "dataset/tasks_from_dirs.json"),
         help="Path to JSON dataset file (default: dataset/tasks.json)",
     )
     parser.add_argument(
         "--output",
         "-o",
-        default=os.environ.get("BUNBENCH_OUTPUT", "predictions.jsonl"),
+        default=os.environ.get("BENCH_OUTPUT", "predictions.jsonl"),
         help="Path to JSONL output file (default: results/inference.jsonl)",
     )
     parser.add_argument(
         "--provider",
         "-p",
-        default=os.environ.get("BUNBENCH_PROVIDER", "openai"),
+        default=os.environ.get("BENCH_PROVIDER", "openai"),
         choices=["openai", "anthropic", "openrouter"],
         help="API provider (default: openai, or openrouter)",
     )
     parser.add_argument(
         "--model",
         "-m",
-        default=os.environ.get("BUNBENCH_MODEL", "gpt-4-turbo"),
+        default=os.environ.get("BENCH_MODEL", "gpt-4-turbo"),
         help="Model name (default: from env or gpt-4-turbo)",
     )
     parser.add_argument(
         "--base-url",
         "-b",
-        default=os.environ.get("BUNBENCH_BASE_URL"),
+        default=os.environ.get("BENCH_BASE_URL"),
         help="Custom base URL (default: from env)",
     )
     parser.add_argument(
@@ -699,14 +699,14 @@ def main():
         "--temperature",
         "-t",
         type=float,
-        default=0.0,
+        default=float(os.environ.get("BENCH_TEMPERATURE", "0.0")),
         help="Sampling temperature (default: 0.0)",
     )
     parser.add_argument(
         "--max-tokens",
         type=int,
-        default=4096,
-        help="Maximum tokens to generate (default: 4096)",
+        default=6000,
+        help="Maximum tokens to generate (default: 6000)",
     )
     parser.add_argument(
         "--prompt-style",
