@@ -124,7 +124,7 @@ class APIClient(ABC):
         system_prompt: str,
         user_prompt: str,
         temperature: float = 0.0,
-        max_tokens: int = 4096,
+        max_tokens: int = 6000,
     ) -> Dict[str, Any]:
         """
         Make an API call.
@@ -145,7 +145,7 @@ class APIClient(ABC):
         system_prompt: str,
         user_prompt: str,
         temperature: float = 0.0,
-        max_tokens: int = 4096,
+        max_tokens: int = 6000,
     ) -> Dict[str, Any]:
         """
         Make an API call with retry logic.
@@ -233,7 +233,7 @@ class OpenAIClient(APIClient):
         system_prompt: str,
         user_prompt: str,
         temperature: float = 0.0,
-        max_tokens: int = 4096,
+        max_tokens: int = 6000,
     ) -> Dict[str, Any]:
         """Make an OpenAI API call."""
         messages = []
@@ -304,7 +304,7 @@ class AnthropicClient(APIClient):
         system_prompt: str,
         user_prompt: str,
         temperature: float = 0.0,
-        max_tokens: int = 4096,
+        max_tokens: int = 6000,
     ) -> Dict[str, Any]:
         """Make an Anthropic API call."""
         response = self.client.messages.create(
@@ -450,7 +450,7 @@ def run_inference(
     base_url: Optional[str] = None,
     api_key: Optional[str] = None,
     temperature: float = 0.0,
-    max_tokens: int = 4096,
+    max_tokens: int = 6000,
     prompt_style: str = "default",
     resume: bool = True,
     max_instances: Optional[int] = None,
@@ -480,12 +480,13 @@ def run_inference(
     Returns:
         InferenceStats with run statistics.
     """
-    # Setup logging
-    log_level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    # Setup logging (only if not already configured)
+    if not logging.getLogger().handlers:
+        log_level = logging.DEBUG if verbose else logging.INFO
+        logging.basicConfig(
+            level=log_level,
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        )
 
     # Initialize client
     if provider.lower() == "openai" or provider.lower() == "openrouter":
@@ -698,14 +699,14 @@ def main():
         "--temperature",
         "-t",
         type=float,
-        default=0.0,
+        default=float(os.environ.get("BENCH_TEMPERATURE", "0.0")),
         help="Sampling temperature (default: 0.0)",
     )
     parser.add_argument(
         "--max-tokens",
         type=int,
-        default=4096,
-        help="Maximum tokens to generate (default: 4096)",
+        default=6000,
+        help="Maximum tokens to generate (default: 6000)",
     )
     parser.add_argument(
         "--prompt-style",

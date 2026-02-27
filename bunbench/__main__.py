@@ -19,17 +19,19 @@ try:
 except ImportError:
     pass
 
-# Configure logging
+# Configure logging (only once per process)
 log_dir = "logs"
 os.makedirs(log_dir, exist_ok=True)
-log_file = os.path.join(log_dir, f"bunbench_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+
+# Create single log file for this run
+run_log_file = os.path.join(log_dir, f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(log_file)
+        logging.FileHandler(run_log_file)
     ]
 )
 logger = logging.getLogger(__name__)

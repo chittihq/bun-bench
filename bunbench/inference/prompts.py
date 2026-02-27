@@ -16,8 +16,10 @@ STRICT RULES - MUST FOLLOW:
 1. ONLY modify the files shown in the code context below
 2. Do NOT add new functions, classes, or files that don't exist
 3. Do NOT rewrite existing code - only fix the specific bug
-4. Match the EXACT indentation, spacing, and coding style
+4. Match the EXACT indentation, spacing, and coding style from the source
 5. The patch must apply cleanly with `git apply`
+6. Use the EXACT file paths shown in the source (e.g., src/server.ts)
+7. The diff path MUST match where the file actually is
 
 Your response must ONLY contain the diff patch in ```diff``` blocks.
 Do NOT include any explanation, comments, or text outside the diff blocks."""
@@ -31,15 +33,17 @@ USER_PROMPT = """## BUG TO FIX
 
 {code_context}
 
-## CRITICAL INSTRUCTIONS
+## CRITICAL INSTRUCTIONS - MUST FOLLOW EXACTLY
 
 1. Look at the source code ABOVE - this is the ONLY code you can modify
 2. The bug is: {problem_statement}
 3. Generate a patch that fixes ONLY this specific bug
 4. Do NOT create new classes, functions, or rewrite the code
 5. Do NOT change anything except what's needed to fix the bug
-6. Match the exact indentation and style of the existing code
-7. Your patch must start with --- a/src/xxx and +++ b/src/xxx
+6. **MATCH THE EXACT INDENTATION** - Count the spaces in the source and use the SAME number
+7. **USE THE EXACT FILE PATH** shown in the source code (e.g., if file is at "src/server.ts", use "src/server.ts")
+8. Your patch MUST start with `--- a/src/xxx` and `+++ b/src/xxx` where xxx is the exact file path
+9. Verify your patch can be applied with `git apply` before outputting
 
 Output ONLY the diff patch in ```diff``` blocks. No explanation needed.
 """
