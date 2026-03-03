@@ -19,6 +19,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from bunbench.inference.utils import extract_snapshot_files
+
 try:
     from tqdm import tqdm
 except ImportError:
@@ -219,8 +221,10 @@ def load_predictions(predictions_path: str) -> Dict[str, str]:
                 if "instance_id" in predictions:
                     instance_id = predictions.get("instance_id")
                     patch = predictions.get("extracted_patch") or predictions.get("patch")
-                    if instance_id and patch:
-                        predictions = {instance_id: patch}
+                    raw_response = predictions.get("raw_response") or ""
+                    if instance_id and (patch or raw_response):
+                        # Store as dict to preserve raw_response
+                        predictions = {instance_id: {"patch": patch or "", "raw_response": raw_response}}
                     else:
                         predictions = {}
             except json.JSONDecodeError:
@@ -233,10 +237,12 @@ def load_predictions(predictions_path: str) -> Dict[str, str]:
                             obj = json.loads(line)
                             instance_id = obj.get("instance_id")
                             if instance_id:
-                                # Use extracted otherwise use raw_response_patch if available, or full obj
+                                # Store both patch and raw_response
                                 patch = obj.get("extracted_patch") or obj.get("patch")
-                                if patch:
-                                    predictions[instance_id] = patch
+                                raw_response = obj.get("raw_response") or ""
+                                # Store if patch exists OR if raw_response exists (for full code format)
+                                if patch or raw_response:
+                                    predictions[instance_id] = {"patch": patch or "", "raw_response": raw_response}
                         except json.JSONDecodeError:
                             continue
 
@@ -429,15 +435,6 @@ CMD ["bun", "test"]
         return True
 
 
-def _looks_like_diff(text: str) -> bool:
-    """Check if text appears to be a unified diff."""
-    indicators = [r'^--- ', r'^\+\+\+ ', r'^@@ ', r'^diff --git ']
-    for pattern in indicators:
-        if re.search(pattern, text, re.MULTILINE):
-            return True
-    return False
-
-
 def apply_patch(container_id: str, patch: str) -> tuple[bool, str]:
     """Apply a git patch inside the container.
 
@@ -485,17 +482,148 @@ def apply_patch(container_id: str, patch: str) -> tuple[bool, str]:
     return True, ""
 
 
+def apply_full_content_then_diff(workdir: Path, raw_response: str) -> bool:
+    """Extract full file content from model output, write it, then generate diff ourselves.
+
+    This solves the issue where model-generated diffs have wrong line numbers.
+    Instead of relying on the model's diff, we:
+    1. Extract the full fixed file content from model output
+    2. Write it directly to the source file
+    3. Generate diff ourselves using `git diff`
+    4. Apply that diff to create a proper commit state
+
+    Args:
+        workdir: Working directory containing the source files.
+        raw_response: Raw model response.
+
+    Returns:
+        True if content was extracted and written successfully.
+    """
+    import re
+
+    if not workdir.exists():
+        return False
+
+    src_dir = workdir / "src"
+    if not src_dir.exists():
+        return False
+
+    # Method 1: Try to extract full file content from snapshot format
+    # (// File: src/filename.ts ... full content ...)
+    # This is the BEST method - model gives us complete fixed file
+    snapshot_files = extract_snapshot_files(raw_response)
+
+    if snapshot_files:
+        logger.debug(f"Found {len(snapshot_files)} snapshot file(s)")
+        files_written = []
+        for filepath, content in snapshot_files.items():
+            # filepath can be "src/filename.ts" or "test/filename.ts"
+            parts = filepath.split("/")
+            if len(parts) >= 2 and parts[0] in ("src", "test"):
+                # Determine target directory based on filepath prefix
+                target_dir = workdir / parts[0]
+                filename = parts[-1]
+            else:
+                # Default to src directory
+                target_dir = src_dir
+                filename = filepath.split("/")[-1]
+
+            target_file = target_dir / filename
+
+            # Create parent directories if needed and write the file
+            target_dir.mkdir(parents=True, exist_ok=True)
+            target_file.write_text(content + "\n")
+            logger.debug(f"Wrote snapshot content to {target_dir.name}/{filename}")
+            files_written.append(f"{target_dir.name}/{filename}")
+
+        if files_written:
+            logger.info(f"Applied patch via content extraction: {', '.join(files_written)}")
+
+        if files_written:
+            # Generate diff ourselves from the written files
+            diff_result = subprocess.run(
+                ["git", "diff"],
+                cwd=workdir,
+                capture_output=True,
+                text=True
+            )
+
+            if diff_result.stdout:
+                logger.debug(f"Generated diff with {len(diff_result.stdout)} chars")
+
+            return True
+
+    # Method 2: Try any code blocks without diff markers (full code format)
+    # Look for code blocks that are NOT diffs
+    code_blocks = re.findall(r'```typescript\n(.*?)```', raw_response, re.DOTALL)
+    if not code_blocks:
+        code_blocks = re.findall(r'```ts\n(.*?)```', raw_response, re.DOTALL)
+    if not code_blocks:
+        code_blocks = re.findall(r'```javascript\n(.*?)```', raw_response, re.DOTALL)
+    if not code_blocks:
+        code_blocks = re.findall(r'```js\n(.*?)```', raw_response, re.DOTALL)
+
+    if code_blocks:
+        logger.debug(f"Found {len(code_blocks)} code block(s) without diff markers")
+        for code_content in code_blocks:
+            # Extract function/class names from code
+            code_funcs = set(re.findall(
+                r'(?:function|class|export\s+function|export\s+const|export\s+class)\s+(\w+)',
+                code_content
+            ))
+
+            if not code_funcs:
+                continue
+
+            # Find matching file
+            for f in src_dir.glob('*.ts'):
+                file_content = f.read_text()
+                file_funcs = set(re.findall(
+                    r'(?:function|class|export\s+function|export\s+const|export\s+class)\s+(\w+)',
+                    file_content
+                ))
+                matches = code_funcs & file_funcs
+
+                if len(matches) >= 1:  # Match on at least 1 function
+                    # Remove any remaining File: comments
+                    code_lines = code_content.splitlines()
+                    code_clean = '\n'.join(
+                        line for line in code_lines
+                        if not line.strip().startswith('// File:')
+                    )
+                    f.write_text(code_clean + '\n')
+                    logger.debug(f"Wrote code to {f.name} (matched: {matches})")
+
+        # Check if any files changed
+        diff_check = subprocess.run(
+            ["git", "diff", "--name-only"],
+            cwd=workdir,
+            capture_output=True,
+            text=True
+        )
+        if diff_check.stdout.strip():
+            logger.debug(f"Files modified via code blocks: {diff_check.stdout.strip()}")
+            return True
+
+    # Method 3: For diff format, we can't easily reconstruct full file
+    # Just return False and let the error handling show the issue
+    logger.debug("No full content found in response, cannot apply patch")
+
+    return False
+
 
 def run_local_evaluation(
     instance: Dict[str, Any],
     patch: str,
-    config: EvaluationConfig
+    raw_response: str = "",
+    config: EvaluationConfig = None
 ) -> EvaluationResult:
     """Run evaluation locally without Docker.
 
     Args:
         instance: Dataset instance.
         patch: Model-generated patch.
+        raw_response: Raw model response (for fallback file replacement).
         config: Evaluation configuration.
 
     Returns:
@@ -560,24 +688,43 @@ def run_local_evaluation(
             if git_commit_result.returncode != 0:
                 logger.warning(f"Failed to create initial commit: {git_commit_result.stderr}")
 
-            # Apply patch using git apply
-            patch_file = tmp_path / "patch.diff"
-            with open(patch_file, "w") as f:
-                f.write(patch)
+            # Try git apply if patch is available
+            result.patch_applied = False
+            apply_stderr = ""
+            if patch:
+                # Apply patch using git apply
+                patch_file = tmp_path / "patch.diff"
+                with open(patch_file, "w") as f:
+                    f.write(patch)
 
-            apply_result = subprocess.run(
-                ["git", "apply", patch_file],
-                cwd=workdir,
-                capture_output=True,
-                text=True
-            )
+                apply_result = subprocess.run(
+                    ["git", "apply", patch_file],
+                    cwd=workdir,
+                    capture_output=True,
+                    text=True
+                )
 
-            result.patch_applied = apply_result.returncode == 0
+                result.patch_applied = apply_result.returncode == 0
+                apply_stderr = apply_result.stderr
 
-            # If patch failed, mark as error
+            # If git apply failed, try extracting full content and generating diff ourselves
+            if not result.patch_applied and raw_response:
+                if apply_full_content_then_diff(workdir, raw_response):
+                    # Verify the changes are applied by checking git diff
+                    diff_check = subprocess.run(
+                        ["git", "diff", "--name-only"],
+                        cwd=workdir,
+                        capture_output=True,
+                        text=True
+                    )
+                    if diff_check.stdout.strip():
+                        result.patch_applied = True
+                        logger.info(f"Applied patch via content extraction: {diff_check.stdout.strip()}")
+
+            # If patch still failed, mark as error
             if not result.patch_applied:
                 result.status = EvaluationStatus.ERROR
-                result.error_message = f"Failed to apply patch: {apply_result.stderr}"
+                result.error_message = f"Failed to apply patch: {apply_stderr}"
                 return result
 
             # Install dependencies
@@ -760,13 +907,15 @@ def grade_result(test_result: TestResult, instance: Dict[str, Any]) -> Evaluatio
 def run_single_evaluation(
     instance: Dict[str, Any],
     patch: str,
-    config: EvaluationConfig
+    raw_response: str = "",
+    config: EvaluationConfig = None
 ) -> EvaluationResult:
     """Run evaluation for a single instance.
 
     Args:
         instance: Dataset instance.
         patch: Model-generated patch.
+        raw_response: Raw model response (for fallback file replacement).
         config: Evaluation configuration.
 
     Returns:
@@ -778,7 +927,7 @@ def run_single_evaluation(
 
     # Use local mode or Docker mode
     if config.local_mode:
-        return run_local_evaluation(instance, patch, config)
+        return run_local_evaluation(instance, patch, raw_response, config)
 
     # Docker mode (original)
     container_id = None
@@ -972,9 +1121,17 @@ def run_evaluation(config: EvaluationConfig) -> List[EvaluationResult]:
                 ))
                 continue
 
-            patch = predictions[instance_id]
+            pred = predictions[instance_id]
+            # Handle both old format (string) and new format (dict)
+            if isinstance(pred, dict):
+                patch = pred.get("patch") or pred.get("extracted_patch") or ""
+                raw_response = pred.get("raw_response", "")
+            else:
+                patch = pred
+                raw_response = ""
+
             future = executor.submit(
-                run_single_evaluation, instance, patch, config
+                run_single_evaluation, instance, patch, raw_response, config
             )
             future_to_instance[future] = instance_id
 

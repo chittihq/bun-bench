@@ -139,17 +139,24 @@ def extract_problem_statement(readme_path: Path) -> str:
 
 
 def extract_code_context(task_dir: Path) -> str:
-    """Extract code context from source files."""
-    src_dir = task_dir / "src"
-    if not src_dir.exists():
-        return ""
-
+    """Extract code context from source files and test files."""
     code_parts = []
-    for ts_file in sorted(src_dir.glob("*.ts")):
-        content = ts_file.read_text()
-        code_parts.append(f"// File: {ts_file.relative_to(task_dir)}\n{content}")
 
-    return "\n".join(code_parts)
+    # Include source files
+    src_dir = task_dir / "src"
+    if src_dir.exists():
+        for ts_file in sorted(src_dir.glob("*.ts")):
+            content = ts_file.read_text()
+            code_parts.append(f"// File: {ts_file.relative_to(task_dir)}\n{content}")
+
+    # Also include test files (important for snapshot update tasks)
+    test_dir = task_dir / "test"
+    if test_dir.exists():
+        for ts_file in sorted(test_dir.glob("*.ts")):
+            content = ts_file.read_text()
+            code_parts.append(f"// File: {ts_file.relative_to(task_dir)}\n{content}")
+
+    return "\n\n".join(code_parts)
 
 
 def build_tasks_from_dirs(tasks_dir: str, output_path: str):
@@ -177,11 +184,12 @@ def build_tasks_from_dirs(tasks_dir: str, output_path: str):
         # Extract code context
         code_context = extract_code_context(task_dir)
 
-        # Build task entry
+        # Build task entry - use the tasks_dir path as base
+        rel_path = str(task_dir)
         task_entry = {
             "instance_id": task_name,
             "task_id": task_name,
-            "task_dir": f"dataset/tasks/{task_name}",
+            "task_dir": rel_path,
             "problem_statement": problem_statement,
             "category": "bug_fix",
             "component": get_component(task_name),

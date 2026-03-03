@@ -57,6 +57,28 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         print_report_summary,
     )
     import os
+    from pathlib import Path
+
+    # Auto-detect predictions file and output dir from task directory if single instance specified
+    if args.instance_ids and len(args.instance_ids) == 1:
+        instance_id = args.instance_ids[0]
+        dataset = load_dataset(args.dataset)
+        for inst in dataset:
+            if inst.get("instance_id") == instance_id:
+                task_dir = inst.get("task_dir", "")
+                if task_dir:
+                    task_path = Path(task_dir)
+                    # Auto-detect predictions
+                    if args.predictions == "predictions.jsonl":
+                        pred_file = task_path / "predictions.jsonl"
+                        if pred_file.exists():
+                            args.predictions = str(pred_file)
+                            logger.info(f"Auto-detected predictions: {args.predictions}")
+                    # Auto-detect output directory
+                    if args.output == "./results":
+                        args.output = str(task_path)
+                        logger.info(f"Auto-detected output directory: {args.output}")
+                break
 
     try:
         # Create configuration

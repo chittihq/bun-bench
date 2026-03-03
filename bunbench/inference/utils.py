@@ -12,6 +12,48 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def extract_snapshot_files(text: str) -> dict:
+    """
+    Extract full file snapshots from model response.
+
+    Handles format:
+    ```typescript
+    // File: src/file.ts
+    FULL FILE CONTENT
+    ```
+
+    Args:
+        text: The model response text.
+
+    Returns:
+        Dictionary mapping filepath to file content.
+    """
+    if not text:
+        return {}
+
+    files = {}
+
+    # Extract ```typescript or ```ts code blocks
+    blocks = re.findall(r"```(?:typescript|ts)\n(.*?)```", text, re.DOTALL)
+
+    for block in blocks:
+        lines = block.strip().splitlines()
+        if not lines:
+            continue
+
+        # Detect file marker
+        if lines[0].startswith("// File:"):
+            path = lines[0].replace("// File:", "").strip()
+            content = "\n".join(lines[1:])
+            files[path] = content
+            logger.debug(f"Extracted snapshot file: {path}")
+
+    if files:
+        logger.info(f"Extracted {len(files)} snapshot file(s)")
+
+    return files
+
+
 def extract_patch(response: str) -> Optional[str]:
     """
     Extract a unified diff patch from a model response.

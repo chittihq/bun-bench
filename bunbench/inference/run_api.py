@@ -743,6 +743,33 @@ def main():
 
     args = parser.parse_args()
 
+    # Auto-detect task directory and save predictions there if single instance specified
+    if args.instances and len(args.instances) == 1 and args.output == "predictions.jsonl":
+        instance_id = args.instances[0]
+        # Try to find task in dataset
+        import json
+        from pathlib import Path
+        try:
+            with open(args.dataset) as f:
+                dataset = json.load(f)
+            # Find task with matching instance_id
+            task = None
+            for t in dataset:
+                if t.get("instance_id") == instance_id:
+                    task = t
+                    break
+
+            if task:
+                task_dir = task.get("task_dir", "")
+                if task_dir:
+                    # Use task directory for output
+                    task_path = Path(task_dir)
+                    if task_path.exists():
+                        args.output = str(task_path / "predictions.jsonl")
+                        print(f"Auto-saving predictions to: {args.output}")
+        except Exception:
+            pass
+
     try:
         stats = run_inference(
             dataset_path=args.dataset,
