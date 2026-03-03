@@ -5,37 +5,50 @@ Prompt templates for Bun-Bench inference.
 from typing import Dict, Any, Optional
 
 # Simple system prompt
-SYSTEM_PROMPT = """You are an expert Bun.js developer. Fix the provided code.
+SYSTEM_PROMPT = """You are an expert Bun.js developer.
+
+IMPORTANT: Read the task description carefully to understand what needs to be fixed.
 
 Return ONLY the complete fixed file content.
 Do NOT output diffs, patches, or unified diffs.
 Do NOT use ```diff code blocks.
-Do NOT omit unchanged code.
 Do NOT output explanations."""
 
 # Simple user prompt
-USER_PROMPT = """## Bug Description
+USER_PROMPT = """## Task Description
 
 {problem_statement}
 
-## Code
+## Current Code
 
 {code_context}
 
 ## Output
 
-Return ONLY the complete fixed source code in this format:
+Return ONLY the complete fixed file in this format:
 
 ```typescript
-// File: src/<filename>
-// Write the COMPLETE fixed file content here - do NOT use diff format
-// Include ALL code, not just the changes
-export function fixedFunction() {{
+// File: <filename>
+// Write the COMPLETE file content here
+export function example() {{
   // complete implementation
 }}
 ```
 
-IMPORTANT: Do NOT use ```diff or ```patch - only use ```typescript"""
+IMPORTANT - Check the task description:
+
+1. If the task involves:
+   - inline snapshots, toMatchInlineSnapshot(), snapshot mismatches
+   - updating snapshots or "stale" snapshots
+   - Tests are failing but the source code is correct
+   THEN: Update only the TEST FILE's inline snapshot values to match current behavior
+   - Do NOT modify source files
+   - Only update the toMatchInlineSnapshot() expected values
+
+2. If the task involves:
+   - fixing bugs in source code
+   - broken/incorrect functionality
+   THEN: Fix the SOURCE CODE files"""
 
 
 def format_prompt(

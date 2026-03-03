@@ -520,16 +520,27 @@ def apply_full_content_then_diff(workdir: Path, raw_response: str) -> bool:
         logger.debug(f"Found {len(snapshot_files)} snapshot file(s)")
         files_written = []
         for filepath, content in snapshot_files.items():
-            # filepath is like "src/semver-compare.ts", extract just the filename
-            filename = filepath.split("/")[-1]
-            target_file = src_dir / filename
-            if target_file.exists():
-                # Write the full fixed content
-                target_file.write_text(content + "\n")
-                logger.debug(f"Wrote snapshot content to {filename}")
-                files_written.append(filename)
+            # filepath can be "src/filename.ts" or "test/filename.ts"
+            parts = filepath.split("/")
+            if len(parts) >= 2 and parts[0] in ("src", "test"):
+                # Determine target directory based on filepath prefix
+                target_dir = workdir / parts[0]
+                filename = parts[-1]
             else:
-                logger.debug(f"Target file not found: {filename}")
+                # Default to src directory
+                target_dir = src_dir
+                filename = filepath.split("/")[-1]
+
+            target_file = target_dir / filename
+
+            # Create parent directories if needed and write the file
+            target_dir.mkdir(parents=True, exist_ok=True)
+            target_file.write_text(content + "\n")
+            logger.debug(f"Wrote snapshot content to {target_dir.name}/{filename}")
+            files_written.append(f"{target_dir.name}/{filename}")
+
+        if files_written:
+            logger.info(f"Applied patch via content extraction: {', '.join(files_written)}")
 
         if files_written:
             # Generate diff ourselves from the written files
