@@ -429,15 +429,6 @@ CMD ["bun", "test"]
         return True
 
 
-def _looks_like_diff(text: str) -> bool:
-    """Check if text appears to be a unified diff."""
-    indicators = [r'^--- ', r'^\+\+\+ ', r'^@@ ', r'^diff --git ']
-    for pattern in indicators:
-        if re.search(pattern, text, re.MULTILINE):
-            return True
-    return False
-
-
 def apply_patch(container_id: str, patch: str) -> tuple[bool, str]:
     """Apply a git patch inside the container.
 
