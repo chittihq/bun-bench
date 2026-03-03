@@ -1,132 +1,64 @@
 """
 Prompt templates for Bun-Bench inference.
-
-This module contains the system and user prompt templates used for code fixing tasks,
-along with utilities for formatting prompts for different model styles.
 """
 
 from typing import Dict, Any, Optional
 
-# System prompt for code fixing tasks
-SYSTEM_PROMPT = """You are an expert Bun JavaScript runtime developer.
+# Simple system prompt
+SYSTEM_PROMPT = """You are an expert Bun.js developer. Fix the provided code.
 
-Your task is to generate a PATCH (diff) to fix bugs in the provided source code.
+Return ONLY the complete fixed file content.
+Do NOT output diffs, patches, or unified diffs.
+Do NOT use ```diff code blocks.
+Do NOT omit unchanged code.
+Do NOT output explanations."""
 
-STRICT RULES - MUST FOLLOW:
-1. ONLY modify the files shown in the code context below
-2. Do NOT add new functions, classes, or files that don't exist
-3. Do NOT rewrite existing code - only fix the specific bug
-4. Match the EXACT indentation, spacing, and coding style from the source
-5. The patch must apply cleanly with `git apply`
-6. Use the EXACT file paths shown in the source (e.g., src/server.ts)
-7. The diff path MUST match where the file actually is
-
-Your response must ONLY contain the diff patch in ```diff``` blocks.
-Do NOT include any explanation, comments, or text outside the diff blocks."""
-
-# User prompt template for code fixing tasks
-USER_PROMPT = """## BUG TO FIX
+# Simple user prompt
+USER_PROMPT = """## Bug Description
 
 {problem_statement}
 
-## SOURCE CODE (FIX THIS EXACT CODE)
+## Code
 
 {code_context}
 
-## CRITICAL INSTRUCTIONS - MUST FOLLOW EXACTLY
+## Output
 
-1. Look at the source code ABOVE - this is the ONLY code you can modify
-2. The bug is: {problem_statement}
-3. Generate a patch that fixes ONLY this specific bug
-4. Do NOT create new classes, functions, or rewrite the code
-5. Do NOT change anything except what's needed to fix the bug
-6. **MATCH THE EXACT INDENTATION** - Count the spaces in the source and use the SAME number
-7. **USE THE EXACT FILE PATH** shown in the source code (e.g., if file is at "src/server.ts", use "src/server.ts")
-8. Your patch MUST start with `--- a/src/xxx` and `+++ b/src/xxx` where xxx is the exact file path
-9. Verify your patch can be applied with `git apply` before outputting
+Return ONLY the complete fixed source code in this format:
 
-Output ONLY the diff patch in ```diff``` blocks. No explanation needed.
-"""
+```typescript
+// File: src/<filename>
+// Write the COMPLETE fixed file content here - do NOT use diff format
+// Include ALL code, not just the changes
+export function fixedFunction() {{
+  // complete implementation
+}}
+```
 
-# Alternative user prompt for minimal context
-USER_PROMPT_MINIMAL = """## BUG TO FIX
-
-{problem_statement}
-
-## Instructions
-
-1. Analyze the bug described above
-2. Generate a minimal patch to fix ONLY this bug
-3. Do NOT rewrite or add new code
-4. Match the existing code style exactly
-
-Output ONLY the diff patch in ```diff``` blocks.
-"""
-
-# Example patch format for reference
-EXAMPLE_PATCH = '''```diff
---- a/src/server.ts
-+++ b/src/server.ts
-@@ -5,7 +5,7 @@ const server = Bun.serve({
-   fetch(req) {
-     if (req.url.includes("/api/user")) {
--      return new Response(JSON.stringify({name: "test"}));
-+      return new Response(JSON.stringify({name: "test"}), { headers: { "Content-Type": "application/json" } });
-     }
-     if (req.url.includes("/api/items")) {
--      return new Response(JSON.stringify([]));
-+      return new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json" } });
-     }
-     return new Response("Not Found");
-   }
-```'''
+IMPORTANT: Do NOT use ```diff or ```patch - only use ```typescript"""
 
 
 def format_prompt(
     problem_statement: str,
-    code_context: Optional[str] = None,
+    code_context: str = "",
     style: str = "default",
-    additional_instructions: Optional[str] = None,
+    additional_instructions: str = None,
 ) -> Dict[str, str]:
-    """
-    Format prompts for different model styles and configurations.
+    """Format prompts for inference."""
 
-    Args:
-        problem_statement: The bug report or feature request description.
-        code_context: Optional relevant code snippets or file contents.
-        style: Prompt style - 'default', 'minimal', 'detailed', or 'chat'.
-        additional_instructions: Optional extra instructions to append.
-
-    Returns:
-        Dictionary with 'system' and 'user' prompt strings.
-
-    Raises:
-        ValueError: If an unknown style is provided.
-    """
-    if style == "minimal":
-        user_prompt = USER_PROMPT_MINIMAL.format(
-            problem_statement=problem_statement
-        )
-    elif style == "default":
+    if code_context:
         user_prompt = USER_PROMPT.format(
             problem_statement=problem_statement,
-            code_context=code_context if code_context else "No additional context provided.",
+            code_context=code_context,
         )
-    elif style == "detailed":
-        user_prompt = USER_PROMPT.format(
-            problem_statement=problem_statement,
-            code_context=code_context if code_context else "No additional context provided.",
-        )
-        user_prompt += f"\n\n## Example Patch Format\n\n{EXAMPLE_PATCH}"
-    elif style == "chat":
-        # Chat style combines system and user into a single user message
-        user_prompt = f"{SYSTEM_PROMPT}\n\n---\n\n{USER_PROMPT.format(problem_statement=problem_statement, code_context=code_context if code_context else 'No additional context provided.')}"
-        return {"system": "", "user": user_prompt}
     else:
-        raise ValueError(f"Unknown prompt style: {style}. Use 'default', 'minimal', 'detailed', or 'chat'.")
+        user_prompt = USER_PROMPT.format(
+            problem_statement=problem_statement,
+            code_context="No code provided.",
+        )
 
     if additional_instructions:
-        user_prompt += f"\n\n## Additional Instructions\n\n{additional_instructions}"
+        user_prompt += f"\n\n{additional_instructions}"
 
     return {
         "system": SYSTEM_PROMPT,
@@ -136,49 +68,25 @@ def format_prompt(
 
 def format_for_openai(
     problem_statement: str,
-    code_context: Optional[str] = None,
+    code_context: str = "",
     style: str = "default",
 ) -> list:
-    """
-    Format prompts as OpenAI-style messages list.
-
-    Args:
-        problem_statement: The bug report or feature request description.
-        code_context: Optional relevant code snippets.
-        style: Prompt style to use.
-
-    Returns:
-        List of message dictionaries for OpenAI API.
-    """
+    """Format prompts for OpenAI API."""
     prompts = format_prompt(problem_statement, code_context, style)
     messages = []
-
     if prompts["system"]:
         messages.append({"role": "system", "content": prompts["system"]})
-
     messages.append({"role": "user", "content": prompts["user"]})
-
     return messages
 
 
 def format_for_anthropic(
     problem_statement: str,
-    code_context: Optional[str] = None,
+    code_context: str = "",
     style: str = "default",
 ) -> Dict[str, Any]:
-    """
-    Format prompts for Anthropic API format.
-
-    Args:
-        problem_statement: The bug report or feature request description.
-        code_context: Optional relevant code snippets.
-        style: Prompt style to use.
-
-    Returns:
-        Dictionary with 'system' and 'messages' for Anthropic API.
-    """
+    """Format prompts for Anthropic API."""
     prompts = format_prompt(problem_statement, code_context, style)
-
     return {
         "system": prompts["system"],
         "messages": [{"role": "user", "content": prompts["user"]}],
